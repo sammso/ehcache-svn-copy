@@ -17,8 +17,8 @@
 
 package net.sf.ehcache.distribution;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -56,15 +56,6 @@ public final class ManualRMICacheManagerPeerProvider extends RMICacheManagerPeer
     }
 
     /**
-     * Time for a cluster to form. This varies considerably, depending on the implementation.
-     *
-     * @return the time in ms, for a cluster to form
-     */
-    public long getTimeForClusterToForm() {
-        return 0;
-    }
-
-    /**
      * Register a new peer.
      *
      * @param rmiUrl
@@ -77,7 +68,7 @@ public final class ManualRMICacheManagerPeerProvider extends RMICacheManagerPeer
     /**
      * @return a list of {@link CachePeer} peers, excluding the local peer.
      */
-    public final synchronized List listRemoteCachePeers(Ehcache cache) throws CacheException {
+    public final synchronized List listRemoteCachePeers(Cache cache) throws CacheException {
         List remoteCachePeers = new ArrayList();
         List staleList = new ArrayList();
         for (Iterator iterator = peerUrls.keySet().iterator(); iterator.hasNext();) {

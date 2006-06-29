@@ -16,9 +16,9 @@
 
 package net.sf.ehcache.distribution;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -50,7 +50,7 @@ public abstract class RMICacheManagerPeerProvider implements CacheManagerPeerPro
     /**
      * The CacheManager this peer provider is associated with.
      */
-    protected CacheManager cacheManager;
+    private CacheManager cacheManager;
 
 
     /**
@@ -106,7 +106,7 @@ public abstract class RMICacheManagerPeerProvider implements CacheManagerPeerPro
     /**
      * @return a list of {@link net.sf.ehcache.distribution.CachePeer} peers for the given cache, excluding the local peer.
      */
-    public abstract List listRemoteCachePeers(Ehcache cache) throws CacheException;
+    public abstract List listRemoteCachePeers(Cache cache) throws CacheException;
 
     /**
      * Whether the entry should be considered stale. This will depend on the type of RMICacheManagerPeerProvider.
@@ -121,7 +121,7 @@ public abstract class RMICacheManagerPeerProvider implements CacheManagerPeerPro
      * The use of one-time registry creation and Naming.rebind should mean we can create as many listeneres as we like.
      * They will simply replace the ones that were there.
      */
-    public CachePeer lookupRemoteCachePeer(String url) throws MalformedURLException, NotBoundException, RemoteException {
+    public static CachePeer lookupRemoteCachePeer(String url) throws MalformedURLException, NotBoundException, RemoteException {
         return (CachePeer) Naming.lookup(url);
     }
 
@@ -140,8 +140,6 @@ public abstract class RMICacheManagerPeerProvider implements CacheManagerPeerPro
     public final CacheManager getCacheManager() {
         return cacheManager;
     }
-
-
 
 
 

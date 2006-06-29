@@ -57,8 +57,7 @@ public class CacheException extends RuntimeException {
     /**
      * Constructor for the CacheException object.
      * @param message the exception detail message
-     * @param initialCause the cause of the exception which can later be retrieved with the {@link #getInitialCause()}
-     * method
+     * @param initialCause the cause of the exception
      */
     public CacheException(String message, Throwable initialCause) {
         super(message);

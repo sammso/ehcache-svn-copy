@@ -16,8 +16,8 @@
 
 package net.sf.ehcache.distribution;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.Status;
 import org.apache.commons.logging.Log;
@@ -66,7 +66,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
     /**
      * A thread which handles replication, so that replication can take place asynchronously and not hold up the cache
      */
-    protected Thread replicationThread = new ReplicationThread();
+    protected final Thread replicationThread = new ReplicationThread();
 
     /**
      * A queue of updates.
@@ -102,7 +102,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
     private void replicationThreadMain() {
         while (true) {
             // Wait for elements in the replicationQueue
-            while (alive() && replicationQueue != null && replicationQueue.size() == 0) {
+            while (alive() && replicationQueue.size() == 0) {
                 try {
                     Thread.sleep(REPLICATION_THREAD_INTERVAL);
                 } catch (InterruptedException e) {
@@ -113,13 +113,8 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
             if (notAlive()) {
                 return;
             }
-            try {
-                if (replicationQueue.size() != 0) {
-                    flushReplicationQueue();
-                }
-            } catch (Throwable e) {
-                LOG.warn("Exception on flushing of replication queue: " + e.getMessage()
-                        + ". Continuing...", e);
+            if (replicationQueue.size() != 0) {
+                flushReplicationQueue();
             }
         }
     }
@@ -133,7 +128,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public final void notifyElementPut(final Ehcache cache, final Element element) throws CacheException {
+    public final void notifyElementPut(final Cache cache, final Element element) throws CacheException {
         if (notAlive()) {
             return;
         }
@@ -148,7 +143,10 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
             }
             return;
         }
-        addToReplicationQueue(new CacheEventMessage(EventMessage.PUT, cache, element, null));
+
+        synchronized (replicationQueue) {
+            replicationQueue.add(new CacheEventMessage(EventMessage.PUT, cache, element, null));
+        }
     }
 
     /**
@@ -164,7 +162,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public final void notifyElementUpdated(final Ehcache cache, final Element element) throws CacheException {
+    public final void notifyElementUpdated(final Cache cache, final Element element) throws CacheException {
         if (notAlive()) {
             return;
         }
@@ -179,7 +177,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
                 }
                 return;
             }
-            addToReplicationQueue(new CacheEventMessage(EventMessage.PUT, cache, element, null));
+            replicationQueue.add(new CacheEventMessage(EventMessage.PUT, cache, element, null));
         } else {
             if (!element.isKeySerializable()) {
                 if (LOG.isWarnEnabled()) {
@@ -187,7 +185,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
                 }
                 return;
             }
-            addToReplicationQueue(new CacheEventMessage(EventMessage.REMOVE, cache, null, element.getKey()));
+            replicationQueue.add(new CacheEventMessage(EventMessage.REMOVE, cache, null, element.getKey()));
         }
     }
 
@@ -200,7 +198,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
      * @param cache   the cache emitting the notification
      * @param element just deleted
      */
-    public final void notifyElementRemoved(final Ehcache cache, final Element element) throws CacheException {
+    public final void notifyElementRemoved(final Cache cache, final Element element) throws CacheException {
         if (!replicateRemovals) {
             return;
         }
@@ -211,28 +209,10 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
             }
             return;
         }
-        addToReplicationQueue(new CacheEventMessage(EventMessage.REMOVE, cache, null, element.getKey()));
-    }
-
-    /**
-     * Adds a message to the queue.
-     * <p/>
-     * This method checks the state of the replication thread and warns
-     * if it has stopped and then discards the message.
-     *
-     * @param cacheEventMessage
-     */
-    protected void addToReplicationQueue(CacheEventMessage cacheEventMessage) {
-        if (!replicationThread.isAlive()) {
-            LOG.error("CacheEventMessages cannot be added to the replication queue"
-                    + " because the replication thread has died.");
-        } else {
-            synchronized (replicationQueue) {
-                replicationQueue.add(cacheEventMessage);
-            }
+        synchronized (replicationQueue) {
+            replicationQueue.add(new CacheEventMessage(EventMessage.REMOVE, cache, null, element.getKey()));
         }
     }
-
 
     /**
      * Gets called once per {@link #REPLICATION_THREAD_INTERVAL}.
@@ -248,22 +228,18 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
      * This method issues warnings for problems that can be fixed with configuration changes.
      */
     private void flushReplicationQueue() {
-        List replicationQueueCopy;
+        Object[] replicationQueueCopy;
         synchronized (replicationQueue) {
             if (replicationQueue.size() == 0) {
                 return;
             }
 
-            replicationQueueCopy = new ArrayList(replicationQueue.size());
-            for (int i = 0; i < replicationQueue.size(); i++) {
-                CacheEventMessage cacheEventMessage = (CacheEventMessage) replicationQueue.get(i);
-                replicationQueueCopy.add(cacheEventMessage);
-            }
+            replicationQueueCopy = replicationQueue.toArray();
             replicationQueue.clear();
         }
 
 
-        Ehcache cache = ((CacheEventMessage) replicationQueueCopy.get(0)).cache;
+        Cache cache = ((CacheEventMessage) replicationQueueCopy[0]).cache;
         List cachePeers = listRemoteCachePeers(cache);
 
         List resolvedEventMessages = extractAndResolveEventMessages(replicationQueueCopy);
@@ -287,7 +263,7 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
             }
         }
         if (LOG.isWarnEnabled()) {
-            int eventMessagesNotResolved = replicationQueueCopy.size() - resolvedEventMessages.size();
+            int eventMessagesNotResolved = replicationQueueCopy.length - resolvedEventMessages.size();
             if (eventMessagesNotResolved > 0) {
                 LOG.warn(eventMessagesNotResolved + " messages were discarded on replicate due to reclamation of " +
                         "SoftReferences by the VM. Consider increasing the maximum heap size and/or setting the " +
@@ -303,13 +279,14 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
      * @param replicationQueueCopy
      * @return a list of EventMessages which were able to be resolved
      */
-    private static List extractAndResolveEventMessages(List replicationQueueCopy) {
+    private static List extractAndResolveEventMessages(Object[] replicationQueueCopy) {
         List list = new ArrayList();
-        for (int i = 0; i < replicationQueueCopy.size(); i++) {
-            EventMessage eventMessage = ((CacheEventMessage) replicationQueueCopy.get(i)).getEventMessage();
+        for (int i = 0; i < replicationQueueCopy.length; i++) {
+            EventMessage eventMessage = ((CacheEventMessage) replicationQueueCopy[i]).getEventMessage();
             if (eventMessage != null) {
                 list.add(eventMessage);
             }
+            replicationQueueCopy[i] = null;
         }
         return list;
     }
@@ -332,7 +309,6 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
         }
     }
 
-
     /**
      * A wrapper around an EventMessage, which enables the element to enqueued along with
      * what is to be done with it.
@@ -342,10 +318,10 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
      */
     private static final class CacheEventMessage {
 
-        private final Ehcache cache;
+        private final Cache cache;
         private final SoftReference softEventMessage;
 
-        public CacheEventMessage(int event, Ehcache cache, Element element, Serializable key) {
+        public CacheEventMessage(int event, Cache cache, Element element, Serializable key) {
             EventMessage eventMessage = new EventMessage(event, key, element);
             softEventMessage = new SoftReference(eventMessage);
             this.cache = cache;
@@ -369,22 +345,6 @@ public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheRep
             replicationQueue.clear();
         }
 
-    }
-
-
-    /**
-     * Creates a clone of this listener. This method will only be called by ehcache before a cache is initialized.
-     * <p/>
-     * This may not be possible for listeners after they have been initialized. Implementations should throw
-     * CloneNotSupportedException if they do not support clone.
-     *
-     * @return a clone
-     * @throws CloneNotSupportedException if the listener could not be cloned.
-     */
-    public Object clone() throws CloneNotSupportedException {
-        //shutup checkstyle
-        super.clone();
-        return new RMIAsynchronousCacheReplicator(replicatePuts, replicateUpdates, replicateUpdatesViaCopy, replicateRemovals);
     }
 
 

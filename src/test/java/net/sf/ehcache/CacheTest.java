@@ -19,15 +19,12 @@ package net.sf.ehcache;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import java.io.ByteArrayInputStream;
 import java.io.Serializable;
 import java.lang.ref.SoftReference;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
 
 /**
@@ -51,7 +48,7 @@ public class CacheTest extends AbstractCacheTest {
      * Checks we cannot use a cache after shutdown
      */
     public void testUseCacheAfterManagerShutdown() throws CacheException {
-        Ehcache cache = manager.getCache("sampleCache1");
+        Cache cache = manager.getCache("sampleCache1");
         manager.shutdown();
         Element element = new Element("key", "value");
         try {
@@ -72,12 +69,36 @@ public class CacheTest extends AbstractCacheTest {
         } catch (IllegalStateException e) {
             assertEquals("The sampleCache1 Cache is not alive.", e.getMessage());
         }
-        //ok to get stats
-        cache.getHitCount();
-        cache.getMemoryStoreHitCount();
-        cache.getDiskStoreHitCount();
-        cache.getMissCountExpired();
-        cache.getMissCountNotFound();
+        try {
+            cache.getHitCount();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The sampleCache1 Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getMemoryStoreHitCount();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The sampleCache1 Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getDiskStoreHitCount();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The sampleCache1 Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getMissCountExpired();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The sampleCache1 Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getMissCountNotFound();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The sampleCache1 Cache is not alive.", e.getMessage());
+        }
     }
 
     /**
@@ -85,7 +106,7 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testUseCacheOutsideManager() throws CacheException {
         //Not put into manager.
-        Ehcache cache = new Cache("testCache", 1, true, false, 5, 2);
+        Cache cache = new Cache("testCache", 1, true, false, 5, 2);
         Element element = new Element("key", "value");
         try {
             cache.getSize();
@@ -105,12 +126,36 @@ public class CacheTest extends AbstractCacheTest {
         } catch (IllegalStateException e) {
             assertEquals("The testCache Cache is not alive.", e.getMessage());
         }
-        //ok to get stats
-        cache.getHitCount();
-        cache.getMemoryStoreHitCount();
-        cache.getDiskStoreHitCount();
-        cache.getMissCountExpired();
-        cache.getMissCountNotFound();
+        try {
+            cache.getHitCount();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The testCache Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getMemoryStoreHitCount();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The testCache Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getDiskStoreHitCount();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The testCache Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getMissCountExpired();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The testCache Cache is not alive.", e.getMessage());
+        }
+        try {
+            cache.getMissCountNotFound();
+            fail();
+        } catch (IllegalStateException e) {
+            assertEquals("The testCache Cache is not alive.", e.getMessage());
+        }
     }
 
 
@@ -119,7 +164,7 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testStaleCacheReference() throws CacheException {
         manager.addCache("test");
-        Ehcache cache = manager.getCache("test");
+        Cache cache = manager.getCache("test");
         assertNotNull(cache);
         cache.put(new Element("key1", "value1"));
 
@@ -142,10 +187,11 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testCacheName() throws Exception {
         manager.addCache("test");
-        Ehcache cache = manager.getCache("test");
+        Cache cache = manager.getCache("test");
         assertEquals("test", cache.getName());
         assertEquals(Status.STATUS_ALIVE, cache.getStatus());
     }
+
 
 
     /**
@@ -154,7 +200,7 @@ public class CacheTest extends AbstractCacheTest {
      * @throws Exception
      */
     public void testCacheWithNoIdle() throws Exception {
-        Ehcache cache = manager.getCache("sampleCacheNoIdle");
+        Cache cache = manager.getCache("sampleCacheNoIdle");
         assertEquals("sampleCacheNoIdle", cache.getName());
         assertEquals(Status.STATUS_ALIVE, cache.getStatus());
         assertEquals(0, cache.getTimeToIdleSeconds());
@@ -171,7 +217,7 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testExpiryBasedOnTimeToLiveWhenNoIdle() throws Exception {
         //Set size so the second element overflows to disk.
-        Ehcache cache = manager.getCache("sampleCacheNoIdle");
+        Cache cache = manager.getCache("sampleCacheNoIdle");
         cache.put(new Element("key1", "value1"));
         cache.put(new Element("key2", "value1"));
         assertNotNull(cache.get("key1"));
@@ -190,104 +236,6 @@ public class CacheTest extends AbstractCacheTest {
 
 
     /**
-     * Test expiry based on time to live for a cache with config
-     * <cache name="sampleCacheNoIdle"
-     * maxElementsInMemory="1000"
-     * eternal="false"
-     * timeToLiveSeconds="5"
-     * overflowToDisk="false"
-     * />
-     * <p/>
-     * where an Elment override is set on TTL
-     */
-    public void testExpiryBasedOnTimeToLiveWhenNoIdleElementOverride() throws Exception {
-        //Set size so the second element overflows to disk.
-        Ehcache cache = manager.getCache("sampleCacheNoIdle");
-        Element element1 = new Element("key1", "value1");
-        element1.setTimeToLive(3);
-        cache.put(element1);
-
-        Element element2 = new Element("key2", "value1");
-        element2.setTimeToLive(3);
-        cache.put(element2);
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-
-        //Test time to idle. Should not idle out because not specified
-        Thread.sleep(2000);
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-
-        //Test time to live.
-        Thread.sleep(3001);
-        assertNull(cache.get("key1"));
-        assertNull(cache.get("key2"));
-    }
-
-    /**
-     * Test expiry based on time to live for a cache with config
-     * <cache name="sampleCacheNoIdle"
-     * maxElementsInMemory="1000"
-     * eternal="false"
-     * timeToLiveSeconds="5"
-     * overflowToDisk="false"
-     * />
-     * <p/>
-     * where an Elment override is set on TTL
-     */
-    public void testExpiryBasedOnTimeToIdleElementOverride() throws Exception {
-        //Set size so the second element overflows to disk.
-        Ehcache cache = manager.getCache("sampleCacheNoIdle");
-        Element element1 = new Element("key1", "value1");
-        element1.setTimeToIdle(1);
-        cache.put(element1);
-
-        Element element2 = new Element("key2", "value1");
-        element2.setTimeToIdle(1);
-        cache.put(element2);
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-
-        //Test time to idle. Should not idle out because not specified
-        Thread.sleep(1001);
-        assertNull(cache.get("key1"));
-        assertNull(cache.get("key2"));
-
-    }
-
-
-    /**
-     * Test expiry based on time to live for a cache with config
-     * <cache name="sampleCacheNoIdle"
-     * maxElementsInMemory="1000"
-     * eternal="false"
-     * timeToLiveSeconds="5"
-     * overflowToDisk="false"
-     * />
-     * <p/>
-     * where an Elment override is set on TTL
-     */
-    public void testExpiryBasedEternalElementOverride() throws Exception {
-        //Set size so the second element overflows to disk.
-        Ehcache cache = manager.getCache("sampleCacheNoIdle");
-        Element element1 = new Element("key1", "value1");
-        element1.setEternal(true);
-        cache.put(element1);
-
-        Element element2 = new Element("key2", "value1");
-        element2.setEternal(true);
-        cache.put(element2);
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-
-        Thread.sleep(5001);
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-
-    }
-
-
-    /**
      * Test expiry based on time to live. Even though eternal is false, because there are no
      * expiry or idle times, it is eternal.
      * <cache name="sampleCacheNotEternalButNoIdleOrExpiry"
@@ -298,7 +246,7 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testExpirySampleCacheNotEternalButNoIdleOrExpiry() throws Exception {
         //Set size so the second element overflows to disk.
-        Ehcache cache = manager.getCache("sampleCacheNotEternalButNoIdleOrExpiry");
+        Cache cache = manager.getCache("sampleCacheNotEternalButNoIdleOrExpiry");
         cache.put(new Element("key1", "value1"));
         cache.put(new Element("key2", "value1"));
         assertNotNull(cache.get("key1"));
@@ -431,14 +379,14 @@ public class CacheTest extends AbstractCacheTest {
         try {
             manager.addCache(cache);
             fail();
-        } catch (CacheException e) {
+        } catch (IllegalStateException e) {
             //expected
         }
 
         //Add a new cache with the same name as the disposed one.
         Cache cache2 = new Cache("test2", 1, true, true, 0, 0, true, 120);
         manager.addCache(cache2);
-        Ehcache cacheFromManager = manager.getCache("test2");
+        Cache cacheFromManager = manager.getCache("test2");
         assertTrue(cacheFromManager.getStatus().equals(Status.STATUS_ALIVE));
 
     }
@@ -448,7 +396,7 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testExpiryBasedOnTimeToLive() throws Exception {
         //Set size so the second element overflows to disk.
-        Cache cache = new Cache("test", 1, true, false, 3, 0);
+        Cache cache = new Cache("test", 1, true, false, 5, 2);
         manager.addCache(cache);
         cache.put(new Element("key1", "value1"));
         cache.put(new Element("key2", "value1"));
@@ -456,15 +404,7 @@ public class CacheTest extends AbstractCacheTest {
         //Test time to live
         assertNotNull(cache.get("key1"));
         assertNotNull(cache.get("key2"));
-        Thread.sleep(1001);
-        //Test time to live
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-        Thread.sleep(1001);
-        //Test time to live
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-        Thread.sleep(1001);
+        Thread.sleep(5010);
         assertNull(cache.get("key1"));
         assertNull(cache.get("key2"));
     }
@@ -478,7 +418,7 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testExpiryBasedOnTimeToLiveForDefault() throws Exception {
         String name = "ThisIsACacheWhichIsNotConfiguredAndWillThereforeUseDefaults";
-        Ehcache cache = null;
+        Cache cache = null;
         CacheManager manager = CacheManager.getInstance();
         cache = manager.getCache(name);
         if (cache == null) {
@@ -560,7 +500,7 @@ public class CacheTest extends AbstractCacheTest {
      */
     public void testExpiryBasedOnTimeToIdle() throws Exception {
         //Set size so the second element overflows to disk.
-        Cache cache = new Cache("test", 1, true, false, 6, 2);
+        Cache cache = new Cache("test", 1, true, false, 5, 2);
         manager.addCache(cache);
         cache.put(new Element("key1", "value1"));
         cache.put(new Element("key2", "value1"));
@@ -570,17 +510,6 @@ public class CacheTest extends AbstractCacheTest {
         Element element2 = cache.get("key2");
         assertNotNull(element1);
         assertNotNull(element2);
-        Thread.sleep(2010);
-        assertNull(cache.get("key1"));
-        assertNull(cache.get("key2"));
-
-        //Test effect of get
-        cache.put(new Element("key1", "value1"));
-        cache.put(new Element("key2", "value1"));
-        Thread.sleep(1010);
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
-
         Thread.sleep(2010);
         assertNull(cache.get("key1"));
         assertNull(cache.get("key2"));
@@ -617,6 +546,44 @@ public class CacheTest extends AbstractCacheTest {
         assertNull(cache.get("key1"));
         element2 = cache.get("key2");
         assertNull(element2);
+    }
+
+    /**
+     * Test statistics
+     */
+    public void testStatistics() throws Exception {
+        //Set size so the second element overflows to disk.
+        Cache cache = new Cache("test", 1, true, false, 5, 2);
+        manager.addCache(cache);
+        cache.put(new Element("key1", "value1"));
+        cache.put(new Element("key2", "value1"));
+
+        //key1 should be in the Disk Store
+        cache.get("key1");
+        assertEquals(1, cache.getHitCount());
+        assertEquals(1, cache.getDiskStoreHitCount());
+        assertEquals(0, cache.getMemoryStoreHitCount());
+        assertEquals(0, cache.getMissCountExpired());
+        assertEquals(0, cache.getMissCountNotFound());
+
+        //key 1 should now be in the LruMemoryStore
+        cache.get("key1");
+        assertEquals(2, cache.getHitCount());
+        assertEquals(1, cache.getDiskStoreHitCount());
+        assertEquals(1, cache.getMemoryStoreHitCount());
+        assertEquals(0, cache.getMissCountExpired());
+        assertEquals(0, cache.getMissCountNotFound());
+
+        //Let the idle expire
+        Thread.sleep(5010);
+
+        //key 1 should now be expired
+        cache.get("key1");
+        assertEquals(2, cache.getHitCount());
+        assertEquals(1, cache.getDiskStoreHitCount());
+        assertEquals(1, cache.getMemoryStoreHitCount());
+        assertEquals(1, cache.getMissCountExpired());
+        assertEquals(1, cache.getMissCountNotFound());
     }
 
     /**
@@ -910,41 +877,34 @@ public class CacheTest extends AbstractCacheTest {
     }
 
     /**
-     * Tests cache, memory store and disk store sizes from config
+     * Tests memory store size
+     *
+     * @throws Exception
      */
-    public void testSizes() throws Exception {
-        Ehcache cache = manager.getCache("sampleCache1");
+    public void testGetMemoryStoreSize() throws Exception {
+        Cache cache = new Cache("testGetMemoryStoreSize", 10, false, false, 100, 200);
+        manager.addCache(cache);
 
         assertEquals(0, cache.getMemoryStoreSize());
 
-        for (int i = 0; i < 10010; i++) {
-            cache.put(new Element("key" + i, "value1"));
-        }
-        assertEquals(10010, cache.getSize());
-        assertEquals(10000, cache.getMemoryStoreSize());
-        assertEquals(10, cache.getDiskStoreSize());
+        cache.put(new Element("key1", "value1"));
+        assertEquals(1, cache.getMemoryStoreSize());
 
+        cache.put(new Element("key2", "value2"));
+        assertEquals(2, cache.getMemoryStoreSize());
+
+        cache.put(new Element("key3", "value3"));
+        cache.put(new Element("key4", "value4"));
         //NonSerializable
         cache.put(new Element(new Object(), Object.class));
-
-        assertEquals(10011, cache.getSize());
-        assertEquals(10000, cache.getMemoryStoreSize());
-        assertEquals(11, cache.getDiskStoreSize());
-
+        assertEquals(5, cache.getMemoryStoreSize());
 
         cache.remove("key4");
         cache.remove("key3");
-
-        assertEquals(10009, cache.getSize());
-        assertEquals(10000, cache.getMemoryStoreSize());
-        assertEquals(9, cache.getDiskStoreSize());
-
+        assertEquals(3, cache.getMemoryStoreSize());
 
         cache.removeAll();
-        assertEquals(0, cache.getSize());
         assertEquals(0, cache.getMemoryStoreSize());
-        assertEquals(0, cache.getDiskStoreSize());
-
     }
 
     /**
@@ -1064,34 +1024,8 @@ public class CacheTest extends AbstractCacheTest {
 
         //Second one should be in the MemoryStore and retrievable
         assertNotNull(cache.get("key2"));
-    }
 
 
-    /**
-     * Tests what happens when an Element throws an Error on serialization. This mimics
-     * what a nasty error like OutOfMemoryError could do.
-     * <p/>
-     * Before a change to the SpoolThread to handle this situation this test failed and generated the following log message.
-     * Jun 28, 2006 7:17:16 PM net.sf.ehcache.store.DiskStore put
-     * SEVERE: testThreadKillerCache: Elements cannot be written to disk store because the spool thread has died.
-     *
-     * @throws Exception
-     */
-    public void testSpoolThreadHandlesThreadKiller() throws Exception {
-        Cache cache = new Cache("testThreadKiller", 1, true, false, 100, 200);
-        manager.addCache(cache);
-
-        Element elementThreadKiller = new Element("key", new ThreadKiller());
-        cache.put(elementThreadKiller);
-        Element element1 = new Element("key1", "one");
-        Element element2 = new Element("key2", "two");
-        cache.put(element1);
-        cache.put(element2);
-
-        Thread.sleep(2000);
-
-        assertNotNull(cache.get("key1"));
-        assertNotNull(cache.get("key2"));
     }
 
     /**
@@ -1176,7 +1110,7 @@ public class CacheTest extends AbstractCacheTest {
      * Tests that the toString() method works.
      */
     public void testToString() {
-        Ehcache cache = new Cache("testGetMemoryStore", 10, false, false, 100, 200);
+        Cache cache = new Cache("testGetMemoryStore", 10, false, false, 100, 200);
         assertTrue(cache.toString().indexOf("testGetMemoryStore") > -1);
         assertEquals(389, cache.toString().length());
     }
@@ -1215,8 +1149,8 @@ public class CacheTest extends AbstractCacheTest {
      * Tests the uniqueness of the GUID
      */
     public void testGuid() {
-        Ehcache cache1 = new Cache("testGetMemoryStore", 10, false, false, 100, 200);
-        Ehcache cache2 = new Cache("testGetMemoryStore", 10, false, false, 100, 200);
+        Cache cache1 = new Cache("testGetMemoryStore", 10, false, false, 100, 200);
+        Cache cache2 = new Cache("testGetMemoryStore", 10, false, false, 100, 200);
         String guid1 = cache1.getGuid();
         String guid2 = cache2.getGuid();
         assertEquals(cache1.getName(), cache2.getName());
@@ -1301,136 +1235,6 @@ public class CacheTest extends AbstractCacheTest {
         assertEquals(objectElement, retrievedObject);
     }
 
-    /**
-     * Test issues reported.
-     */
-    public void testDiskStoreFlorian() {
-        manager.shutdown();
-
-        byte[] config = ("<ehcache> \n" +
-                "<diskStore path=\"java.io.tmpdir\"/> \n" +
-                "<defaultCache \n" +
-                "            maxElementsInMemory=\"10000\" \n" +
-                "            eternal=\"false\" \n" +
-                "            timeToIdleSeconds=\"120\" \n" +
-                "            timeToLiveSeconds=\"120\" \n" +
-                "            overflowToDisk=\"true\" \n" +
-                "            diskPersistent=\"false\" \n" +
-                "            diskExpiryThreadIntervalSeconds=\"120\" \n" +
-                "            memoryStoreEvictionPolicy=\"LRU\" \n" +
-                "            /> " +
-                "\n" +
-                "<cache name=\"testCache\" \n" +
-                "       maxElementsInMemory=\"20000\" \n" +
-                "       eternal=\"false\" \n" +
-                "       overflowToDisk=\"false\" \n" +
-                "       timeToIdleSeconds=\"300\" \n" +
-                "       timeToLiveSeconds=\"600\" \n" +
-                "       diskPersistent=\"false\" \n" +
-                "       diskExpiryThreadIntervalSeconds=\"1\" \n" +
-                "       memoryStoreEvictionPolicy=\"LFU\" \n" +
-                "/>           \n" +
-                "<cache name=\"test2Cache\" \n" +
-                "       maxElementsInMemory=\"20000\" \n" +
-                "       eternal=\"false\" \n" +
-                "       overflowToDisk=\"true\" \n" +
-                "       timeToIdleSeconds=\"300\" \n" +
-                "       timeToLiveSeconds=\"600\" \n" +
-                "       diskPersistent=\"false\" \n" +
-                "       diskExpiryThreadIntervalSeconds=\"1\" \n" +
-                "       memoryStoreEvictionPolicy=\"LFU\" \n" +
-                "/> \n" +
-                "</ehcache> ").getBytes();
-
-
-        CacheManager cacheManager = new CacheManager(new ByteArrayInputStream(config));
-        Cache cache = new Cache("test3cache", 20000, true, false, 50, 30);
-        assertTrue(cache.isOverflowToDisk());
-        cacheManager.addCache(cache);
-
-        for (int i = 0; i < 25000; i++) {
-            cache.put(new Element(i + "", "value"));
-        }
-
-        assertEquals(5000, cache.getDiskStoreSize());
-    }
-
-
-    /**
-     * Multi-thread read-write test with 20 threads
-     * Just use MemoryStore to put max stress on cache
-     * Values that work:
-     * <pre>
-     * size     threads     maxTime
-     * 10000    50          200
-     * 200000   50          500
-     * 200000   500         800
-     * </pre>
-     */
-    public void testReadWriteThreads() throws Exception {
-
-        final int size = 10000;
-        final int maxTime = 300;
-        final Cache cache = new Cache("test3cache", size, false, true, 30, 30);
-        manager.addCache(cache);
-
-        long start = System.currentTimeMillis();
-        final List executables = new ArrayList();
-        final Random random = new Random();
-
-        for (int i = 0; i < size; i++) {
-            cache.put(new Element("" + i, "value"));
-        }
-
-        // 50% of the time get data
-        for (int i = 0; i < 30; i++) {
-            final Executable executable = new Executable() {
-                public void execute() throws Exception {
-                    final StopWatch stopWatch = new StopWatch();
-                    long start = stopWatch.getElapsedTime();
-                    cache.get("key" + random.nextInt(size));
-                    long end = stopWatch.getElapsedTime();
-                    long elapsed = end - start;
-                    assertTrue("Get time outside of allowed range: " + elapsed, elapsed < maxTime);
-                }
-            };
-            executables.add(executable);
-        }
-
-        //25% of the time add data
-        for (int i = 0; i < 10; i++) {
-            final Executable executable = new Executable() {
-                public void execute() throws Exception {
-                    final StopWatch stopWatch = new StopWatch();
-                    long start = stopWatch.getElapsedTime();
-                    cache.put(new Element("key" + random.nextInt(size), "value"));
-                    long end = stopWatch.getElapsedTime();
-                    long elapsed = end - start;
-                    assertTrue("Put time outside of allowed range: " + elapsed, elapsed < maxTime);
-                }
-            };
-            executables.add(executable);
-        }
-
-        //25% of the time remove the data
-        for (int i = 0; i < 10; i++) {
-            final Executable executable = new Executable() {
-                public void execute() throws Exception {
-                    final StopWatch stopWatch = new StopWatch();
-                    long start = stopWatch.getElapsedTime();
-                    cache.remove("key" + random.nextInt(size));
-                    long end = stopWatch.getElapsedTime();
-                    long elapsed = end - start;
-                    assertTrue("Remove time outside of allowed range: " + elapsed, elapsed < maxTime);
-                }
-            };
-            executables.add(executable);
-        }
-
-        runThreads(executables);
-        long end = System.currentTimeMillis();
-        LOG.info("Total time for the test: " + (end - start) + " ms");
-    }
 
 
 }

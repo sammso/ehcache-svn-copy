@@ -16,9 +16,9 @@
 
 package net.sf.ehcache.event;
 
-import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.CacheException;
 import net.sf.ehcache.distribution.CacheReplicator;
 
 import java.util.HashSet;
@@ -42,14 +42,14 @@ public final class RegisteredEventListeners {
      * @see CacheEventListener
      */
     private final Set cacheEventListeners = new HashSet();
-    private final Ehcache cache;
+    private final Cache cache;
 
     /**
      * Constructs a new notification service
      *
      * @param cache
      */
-    public RegisteredEventListeners(Ehcache cache) {
+    public RegisteredEventListeners(Cache cache) {
         this.cache = cache;
     }
 
@@ -76,7 +76,7 @@ public final class RegisteredEventListeners {
      *
      * @param element
      * @param remoteEvent whether the event came from a remote cache peer
-     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)
+     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Cache,net.sf.ehcache.Element)
      */
     public final void notifyElementPut(Element element, boolean remoteEvent) throws CacheException {
         Iterator iterator = cacheEventListeners.iterator();
@@ -93,7 +93,7 @@ public final class RegisteredEventListeners {
      *
      * @param element
      * @param remoteEvent whether the event came from a remote cache peer
-     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)
+     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Cache,net.sf.ehcache.Element)
      */
     public final void notifyElementUpdated(Element element, boolean remoteEvent) {
         Iterator iterator = cacheEventListeners.iterator();

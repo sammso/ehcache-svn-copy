@@ -17,8 +17,6 @@
 package net.sf.ehcache.distribution;
 
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Status;
-import net.sf.ehcache.event.CacheManagerEventListener;
 
 import java.util.List;
 
@@ -27,7 +25,7 @@ import java.util.List;
  * @author Greg Luck
  * @version $Id$
  */
-public interface CacheManagerPeerListener extends CacheManagerEventListener {
+public interface CacheManagerPeerListener {
 
 
     /**
@@ -47,29 +45,6 @@ public interface CacheManagerPeerListener extends CacheManagerEventListener {
      * @return a list of <code>CachePeer</code> objects
      */
     List getBoundCachePeers();
-
-    /**
-     * Returns the listener status.
-     */
-    Status getStatus();
-
-
-    /**
-     * A listener will normally have a resource that only one instance can use at the same time,
-     * such as a port. This identifier is used to tell if it is unique and will not conflict with an
-     * existing instance using the resource.
-     * @return a String identifier for the resource
-     */
-    String getUniqueResourceIdentifier();
-
-
-    /**
-     * If a conflict is detected in unique resource use, this method signals the listener to attempt
-     * automatic resolution of the resource conflict.
-     * @throws IllegalStateException if the statis of the listener is not {@link Status#STATUS_UNINITIALISED}
-     */
-    void attemptResolutionOfUniqueResourceConflict() throws IllegalStateException, CacheException;
-
 
 
 

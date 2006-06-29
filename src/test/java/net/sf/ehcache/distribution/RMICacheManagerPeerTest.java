@@ -17,20 +17,19 @@
 package net.sf.ehcache.distribution;
 
 import junit.framework.TestCase;
-import net.sf.ehcache.AbstractCacheTest;
 import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.AbstractCacheTest;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.net.SocketTimeoutException;
 import java.rmi.RemoteException;
 import java.rmi.UnmarshalException;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.ArrayList;
 
 /**
  * Unit tests for RMICachePeer
@@ -63,7 +62,6 @@ public class RMICacheManagerPeerTest extends TestCase {
     protected void setUp() throws Exception {
         manager = CacheManager.create(AbstractCacheTest.TEST_CONFIG_DIR + "ehcache.xml");
         cache = new Cache("test", 10, false, false, 10, 10);
-
         peerListener = new RMICacheManagerPeerListener(hostName, port, manager, new Integer(2000));
     }
 
@@ -97,13 +95,11 @@ public class RMICacheManagerPeerTest extends TestCase {
     public void testFailsIfTimeoutExceeded() throws Exception {
 
         RMICachePeer rmiCachePeer = new SlowRMICachePeer(cache, hostName, port, new Integer(1000));
-        peerListener.addCachePeer(cache.getName(), rmiCachePeer);
+        peerListener.getCachePeers().add(rmiCachePeer);
         peerListener.init();
-        
-
 
         try {
-            CachePeer cachePeer = new ManualRMICacheManagerPeerProvider().lookupRemoteCachePeer(rmiCachePeer.getUrl());
+            CachePeer cachePeer = RMICacheManagerPeerProvider.lookupRemoteCachePeer(rmiCachePeer.getUrl());
             cachePeer.put(new Element("1", new Date()));
             fail();
         } catch (UnmarshalException e) {
@@ -122,10 +118,10 @@ public class RMICacheManagerPeerTest extends TestCase {
         cache = new Cache("test", 10, false, false, 10, 10);
         RMICachePeer rmiCachePeer = new SlowRMICachePeer(cache, hostName, port, new Integer(2100));
 
-        peerListener.addCachePeer(cache.getName(), rmiCachePeer);
+        peerListener.getCachePeers().add(rmiCachePeer);
         peerListener.init();
 
-        CachePeer cachePeer = new ManualRMICacheManagerPeerProvider().lookupRemoteCachePeer(rmiCachePeer.getUrl());
+        CachePeer cachePeer = RMICacheManagerPeerProvider.lookupRemoteCachePeer(rmiCachePeer.getUrl());
         cachePeer.put(new Element("1", new Date()));
     }
 
@@ -143,10 +139,10 @@ public class RMICacheManagerPeerTest extends TestCase {
         RMICachePeer rmiCachePeer = new RMICachePeer(cache, hostName, port, new Integer(2100));
         manager.addCache(cache);
 
-        peerListener.addCachePeer(cache.getName(), rmiCachePeer);
+        peerListener.getCachePeers().add(rmiCachePeer);
         peerListener.init();
 
-        CachePeer cachePeer = new ManualRMICacheManagerPeerProvider().lookupRemoteCachePeer(rmiCachePeer.getUrl());
+        CachePeer cachePeer = RMICacheManagerPeerProvider.lookupRemoteCachePeer(rmiCachePeer.getUrl());
         Element element = new Element("1", new Date());
         EventMessage eventMessage = new EventMessage(EventMessage.PUT, null, element);
         List eventMessages = new ArrayList();
@@ -168,8 +164,7 @@ public class RMICacheManagerPeerTest extends TestCase {
          * @param socketTimeoutMillis
          * @throws RemoteException
          */
-        public SlowRMICachePeer(Ehcache cache, String hostName, Integer port, Integer socketTimeoutMillis)
-                throws RemoteException {
+        public SlowRMICachePeer(Cache cache, String hostName, Integer port, Integer socketTimeoutMillis) throws RemoteException {
             super(cache, hostName, port, socketTimeoutMillis);
         }
 

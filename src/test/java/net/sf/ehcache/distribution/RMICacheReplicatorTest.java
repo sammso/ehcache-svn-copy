@@ -16,27 +16,23 @@
 
 package net.sf.ehcache.distribution;
 
-import junit.framework.AssertionFailedError;
 import junit.framework.TestCase;
-import net.sf.ehcache.AbstractCacheTest;
 import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.AbstractCacheTest;
 import net.sf.ehcache.StopWatch;
-import net.sf.ehcache.ThreadKiller;
 import net.sf.ehcache.event.CountingCacheEventListener;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 
-import java.io.IOException;
 import java.io.Serializable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
-import java.util.ArrayList;
-import java.rmi.RemoteException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * Tests replication of Cache events
@@ -52,19 +48,10 @@ import java.rmi.RemoteException;
  */
 public class RMICacheReplicatorTest extends TestCase {
 
-
-
-    /**
-     * A value to represent replicate asynchronously
-     */
-    protected static final boolean ASYNCHRONOUS = true;
-
-    /**
-     * A value to represent replicate synchronously
-     */
-    protected static final boolean SYNCHRONOUS = false;
-
     private static final Log LOG = LogFactory.getLog(RMICacheReplicatorTest.class.getName());
+
+    private static final boolean ASYNCHRONOUS = true;
+    private static final boolean SYNCHRONOUS = false;
 
     /**
      * CacheManager 1 in the cluster
@@ -98,12 +85,13 @@ public class RMICacheReplicatorTest extends TestCase {
     /**
      * CacheManager 1 of 2s cache being replicated
      */
-    protected Ehcache cache1;
+    protected Cache cache1;
 
     /**
      * CacheManager 2 of 2s cache being replicated
      */
-    protected Ehcache cache2;
+    protected Cache cache2;
+
 
     /**
      * {@inheritDoc}
@@ -120,7 +108,6 @@ public class RMICacheReplicatorTest extends TestCase {
         // memory to -Xmx!
         //forceVMGrowth();
         //System.gc();
-        MulticastKeepaliveHeartbeatSender.setHeartBeatInterval(1000);
 
         CountingCacheEventListener.resetCounters();
         manager1 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed1.xml");
@@ -129,7 +116,7 @@ public class RMICacheReplicatorTest extends TestCase {
         manager4 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed4.xml");
         manager5 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed5.xml");
 
-        //manager6 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed-jndi6.xml");
+        manager1.getCache(cacheName).removeAll();
 
         cache1 = manager1.getCache(cacheName);
         cache1.removeAll();
@@ -138,14 +125,11 @@ public class RMICacheReplicatorTest extends TestCase {
         cache2.removeAll();
 
         //allow cluster to be established
-        Thread.sleep(1000);
+        Thread.sleep(6000);
+
     }
 
-    /**
-     * Force the VM to grow to its full size. This stops SoftReferences from being reclaimed in favour of
-     * Heap growth. Only an issue when a VM is cold.
-     */
-    protected void forceVMGrowth() {
+    private void forceVMGrowth() {
         byte[] forceVMGrowth = new byte[50000000];
     }
 
@@ -173,12 +157,15 @@ public class RMICacheReplicatorTest extends TestCase {
         if (manager4 != null) {
             manager4.shutdown();
         }
+
         if (manager5 != null) {
             manager5.shutdown();
         }
+
         if (manager6 != null) {
             manager6.shutdown();
         }
+
     }
 
     /**
@@ -253,26 +240,16 @@ public class RMICacheReplicatorTest extends TestCase {
             return;
         }
 
-        try {
-            CacheManagerPeerProvider provider = manager1.getCachePeerProvider();
-            List remotePeersOfCache1 = provider.listRemoteCachePeers(cache1);
-            assertEquals(4, remotePeersOfCache1.size());
+        CacheManagerPeerProvider provider = manager1.getCachePeerProvider();
+        List remotePeersOfCache1 = provider.listRemoteCachePeers(cache1);
+        assertEquals(4, remotePeersOfCache1.size());
 
-            MulticastKeepaliveHeartbeatSender.setHeartBeatInterval(2000);
-            Thread.sleep(2000);
+        //Drop a CacheManager from the cluster
+        manager5.shutdown();
 
-            //Drop a CacheManager from the cluster
-            manager5.shutdown();
-
-            //Insufficient time for it to timeout
-            remotePeersOfCache1 = provider.listRemoteCachePeers(cache1);
-            assertEquals(4, remotePeersOfCache1.size());
-        } finally {
-            MulticastKeepaliveHeartbeatSender.setHeartBeatInterval(1000);
-            Thread.sleep(2000);
-        }
-
-
+        //Insufficient time for it to timeout
+        remotePeersOfCache1 = provider.listRemoteCachePeers(cache1);
+        assertEquals(4, remotePeersOfCache1.size());
     }
 
     /**
@@ -288,7 +265,6 @@ public class RMICacheReplicatorTest extends TestCase {
 
         //Put
         String[] cacheNames = manager1.getCacheNames();
-        int numberOfCaches = getNumberOfReplicatingCachesInCacheManager();
         Arrays.sort(cacheNames);
         for (int i = 0; i < cacheNames.length; i++) {
             String name = cacheNames[i];
@@ -309,10 +285,6 @@ public class RMICacheReplicatorTest extends TestCase {
             if (element2 != null) {
                 count2++;
             }
-            Element nonSerializableElement2 = manager2.getCache(name).get("nonSerializable" + i);
-            if (nonSerializableElement2 != null) {
-                count2++;
-            }
             Element element3 = manager3.getCache(name).get("" + i);
             if (element3 != null) {
                 count3++;
@@ -325,30 +297,13 @@ public class RMICacheReplicatorTest extends TestCase {
             if (element5 != null) {
                 count5++;
             }
+            //LOG.debug("element propagated to cache named " + name + ": " + element);
         }
-        assertEquals(numberOfCaches, count2);
-        assertEquals(numberOfCaches, count3);
-        assertEquals(numberOfCaches, count4);
-        assertEquals(numberOfCaches, count5);
+        assertEquals(55, count2);
+        assertEquals(55, count3);
+        assertEquals(55, count4);
+        assertEquals(55, count5);
 
-    }
-
-    /**
-     * Enables long stabilty runs using replication to be done.
-     *
-     * @throws InterruptedException
-     */
-    public void manualStabilityTest() throws InterruptedException {
-        while (true) {
-            testBigPutsProgagatesAsynchronous();
-        }
-    }
-
-    /**
-     * The number of caches there should be.
-     */
-    protected int getNumberOfReplicatingCachesInCacheManager() {
-        return 55;
     }
 
     /**
@@ -401,90 +356,11 @@ public class RMICacheReplicatorTest extends TestCase {
 
         assertEquals(2000, cache1.getSize());
 
-        Thread.sleep(5000);
+        Thread.sleep(2000);
         assertEquals(2000, manager2.getCache("sampleCache1").getSize());
         assertEquals(2000, manager3.getCache("sampleCache1").getSize());
         assertEquals(2000, manager4.getCache("sampleCache1").getSize());
         assertEquals(2000, manager5.getCache("sampleCache1").getSize());
-
-    }
-
-
-    /**
-     * Performance and capacity tests.
-     * <p/>
-     */
-    public void testBootstrap() throws CacheException, InterruptedException, RemoteException {
-
-        if (JVMUtil.isSingleRMIRegistryPerVM()) {
-            return;
-        }
-
-        //load up some data
-        StopWatch stopWatch = new StopWatch();
-        Integer index = null;
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 1000; j++) {
-                index = new Integer(((1000 * i) + j));
-                cache1.put(new Element(index,
-                        "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                                + "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"));
-            }
-
-        }
-        long elapsed = stopWatch.getElapsedTime();
-        long putTime = ((elapsed / 1000));
-        LOG.info("Put Elapsed time: " + putTime);
-
-        assertEquals(2000, cache1.getSize());
-
-        Thread.sleep(7000);
-        assertEquals(2000, manager2.getCache("sampleCache1").getSize());
-        assertEquals(2000, manager3.getCache("sampleCache1").getSize());
-        assertEquals(2000, manager4.getCache("sampleCache1").getSize());
-        assertEquals(2000, manager5.getCache("sampleCache1").getSize());
-
-        //now test bootstrap
-        manager1.addCache("bootStrapResults");
-        Cache cache = manager1.getCache("bootStrapResults");
-        List cachePeers = manager1.getCacheManagerPeerProvider().listRemoteCachePeers(cache1);
-        CachePeer cachePeer = (CachePeer) cachePeers.get(0);
-
-        List keys = cachePeer.getKeys();
-        assertEquals(2000, keys.size());
-
-        Element firstElement = cachePeer.getQuiet((Serializable) keys.get(0));
-        long size = firstElement.getSerializedSize();
-        assertEquals(574, size);
-
-        int chunkSize = (int) (5000000 / size);
-
-        List requestChunk = new ArrayList();
-        for (int i = 0; i < keys.size(); i++) {
-            Serializable serializable = (Serializable) keys.get(i);
-            requestChunk.add(serializable);
-            if (requestChunk.size() == chunkSize) {
-                fetchAndPutElements(cache, requestChunk, cachePeer);
-                requestChunk.clear();
-            }
-        }
-        //get leftovers
-        fetchAndPutElements(cache, requestChunk, cachePeer);
-
-        assertEquals(keys.size(), cache.getSize());
-
-    }
-
-    private void fetchAndPutElements(Ehcache cache, List requestChunk, CachePeer cachePeer) throws RemoteException {
-        List receivedChunk = cachePeer.getElements(requestChunk);
-        for (int i = 0; i < receivedChunk.size(); i++) {
-            Element element = (Element) receivedChunk.get(i);
-            assertNotNull(element);
-            cache.put(element, true);
-        }
 
     }
 
@@ -558,7 +434,7 @@ public class RMICacheReplicatorTest extends TestCase {
             }
 
         }
-        Thread.sleep(8000);
+        Thread.sleep(5000);
         assertEquals(5000, cache1.getSize());
         assertEquals(5000, manager2.getCache("sampleCache1").getSize());
         assertEquals(5000, manager3.getCache("sampleCache1").getSize());
@@ -636,41 +512,6 @@ public class RMICacheReplicatorTest extends TestCase {
 
 
     /**
-     * manager1 adds a replicating cache, then manager2 and so on. Then we remove one. Does everything work as expected?
-     */
-    public void testPutWithNewCacheAddedProgressively() throws InterruptedException {
-
-        manager1.addCache("progressiveAddCache");
-        manager2.addCache("progressiveAddCache");
-
-        //The cluster will not have formed yet, so it will fail
-        try {
-            putTest(manager1.getCache("progressiveAddCache"), manager2.getCache("progressiveAddCache"), ASYNCHRONOUS);
-            fail();
-        } catch (AssertionFailedError e) {
-            //expected
-        }
-
-        //The cluster will now have formed yet, so it will succeed
-        putTest(manager1.getCache("progressiveAddCache"), manager2.getCache("progressiveAddCache"), ASYNCHRONOUS);
-
-        Cache secondCache = manager2.getCache("progressiveAddCache");
-
-        //The second peer disappears. The test will fail.
-        manager2.removeCache("progressiveAddCache");
-        try {
-            putTest(manager1.getCache("progressiveAddCache"), secondCache, ASYNCHRONOUS);
-            fail();
-        } catch (IllegalStateException e) {
-            //The second cache will not alive. Expected. But no other exception is caught and this will otherwise fail.
-
-        }
-
-
-    }
-
-
-    /**
      * Test various cache configurations for cache1 - explicit setting of:
      * properties="replicateAsynchronously=true, replicatePuts=true, replicateUpdates=true, replicateUpdatesViaCopy=true, replicateRemovals=true "/>
      */
@@ -679,32 +520,6 @@ public class RMICacheReplicatorTest extends TestCase {
             return;
         }
         putTest(manager1.getCache("sampleCache1"), manager2.getCache("sampleCache1"), ASYNCHRONOUS);
-    }
-
-
-    /**
-     * Test various cache configurations for cache1 - explicit setting of:
-     * properties="replicateAsynchronously=true, replicatePuts=true, replicateUpdates=true, replicateUpdatesViaCopy=true, replicateRemovals=true "/>
-     */
-    public void testPutWithThreadKiller() throws InterruptedException {
-        if (JVMUtil.isSingleRMIRegistryPerVM()) {
-            return;
-        }
-        putTestWithThreadKiller(manager1.getCache("sampleCache1"), manager2.getCache("sampleCache1"), ASYNCHRONOUS);
-    }
-
-    /**
-     * CacheEventListeners that are not CacheReplicators should receive cache events originated from receipt
-     * of a remote event by a CachePeer.
-     */
-    public void testRemotelyReceivedPutNotifiesCountingListener() throws InterruptedException {
-        if (JVMUtil.isSingleRMIRegistryPerVM()) {
-            return;
-        }
-        putTest(manager1.getCache("sampleCache1"), manager2.getCache("sampleCache1"), ASYNCHRONOUS);
-        assertEquals(1, CountingCacheEventListener.getCacheElementsPut(manager1.getCache("sampleCache1")).size());
-        assertEquals(1, CountingCacheEventListener.getCacheElementsPut(manager2.getCache("sampleCache1")).size());
-
     }
 
     /**
@@ -748,7 +563,7 @@ public class RMICacheReplicatorTest extends TestCase {
      * <p/>
      * This test goes into an infinite loop if the chain of notifications is not somehow broken.
      */
-    public void putTest(Ehcache fromCache, Ehcache toCache, boolean asynchronous) throws CacheException, InterruptedException {
+    public void putTest(Cache fromCache, Cache toCache, boolean asynchronous) throws CacheException, InterruptedException {
 
         Serializable key = new Date();
         Serializable value = new Date();
@@ -762,43 +577,21 @@ public class RMICacheReplicatorTest extends TestCase {
             waitForProgagate();
         }
 
-        //Should have been replicated to toCache.
-        Element deliveredElement = toCache.get(key);
-        assertEquals(sourceElement, deliveredElement);
+        int j = 0;
 
-    }
+        Thread.sleep(5000);
 
-
-    /**
-     * Tests put and remove initiated from cache1 in a cluster
-     * <p/>
-     * This test goes into an infinite loop if the chain of notifications is not somehow broken.
-     */
-    public void putTestWithThreadKiller(Ehcache fromCache, Ehcache toCache, boolean asynchronous)
-            throws CacheException, InterruptedException {
-
-        fromCache.put(new Element("thread killer", new ThreadKiller()));
-        if (asynchronous) {
-            waitForProgagate();
-        }
-
-        Serializable key = new Date();
-        Serializable value = new Date();
-        Element sourceElement = new Element(key, value);
-
-        //Put
-        fromCache.put(sourceElement);
-
-        if (asynchronous) {
-            waitForProgagate();
-        }
+        LOG.info("" + manager1.getCache("sampleCache1").getSize());
+        LOG.info("" + manager2.getCache("sampleCache1").getSize());
+        LOG.info("" + manager3.getCache("sampleCache1").getSize());
+        LOG.info("" + manager4.getCache("sampleCache1").getSize());
+        LOG.info("" + manager5.getCache("sampleCache1").getSize());
 
         //Should have been replicated to toCache.
         Element deliveredElement = toCache.get(key);
         assertEquals(sourceElement, deliveredElement);
 
     }
-
 
     /**
      * Checks that a put received from a remote cache notifies any registered listeners.
@@ -902,7 +695,7 @@ public class RMICacheReplicatorTest extends TestCase {
      * <p/>
      * This test goes into an infinite loop if the chain of notifications is not somehow broken.
      */
-    public void removeTest(Ehcache fromCache, Ehcache toCache, boolean asynchronous) throws CacheException, InterruptedException {
+    public void removeTest(Cache fromCache, Cache toCache, boolean asynchronous) throws CacheException, InterruptedException {
 
         Serializable key = new Date();
         Serializable value = new Date();
@@ -971,7 +764,7 @@ public class RMICacheReplicatorTest extends TestCase {
      * <p/>
      * This test goes into an infinite loop if the chain of notifications is not somehow broken.
      */
-    public void updateViaCopyTest(Ehcache fromCache, Ehcache toCache, boolean asynchronous) throws Exception {
+    public void updateViaCopyTest(Cache fromCache, Cache toCache, boolean asynchronous) throws Exception {
 
         fromCache.removeAll();
         toCache.removeAll();

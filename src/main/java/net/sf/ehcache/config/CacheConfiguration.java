@@ -33,7 +33,6 @@ import java.util.List;
  * diskPersistent="true"
  * diskExpiryThreadIntervalSeconds="120"
  * />
- *
  * @author <a href="mailto:gluck@thoughtworks.com">Greg Luck</a>
  * @version $Id$
  */
@@ -107,11 +106,6 @@ public final class CacheConfiguration {
      * The event listener factories added by BeanUtils.
      */
     protected final List cacheEventListenerConfigurations = new ArrayList();
-
-    /**
-     * The BootstrapCacheLoaderFactoryConfiguration.
-     */
-    protected BootstrapCacheLoaderFactoryConfiguration bootstrapCacheLoaderFactoryConfiguration;
 
     /**
      * Sets the name of the cache. This must be unique.
@@ -191,21 +185,6 @@ public final class CacheConfiguration {
      */
     public final void addCacheEventListenerFactory(CacheEventListenerFactoryConfiguration factory) {
         cacheEventListenerConfigurations.add(factory);
-    }
-
-    /**
-     * Configuration for the BootstrapCacheLoaderFactoryConfiguration.
-     */
-    public final class BootstrapCacheLoaderFactoryConfiguration extends FactoryConfiguration {
-    }
-
-    /**
-     * Allows {@link BeanHandler} to add the CacheManagerEventListener to the configuration.
-     */
-    public final void addBootstrapCacheLoaderFactory(BootstrapCacheLoaderFactoryConfiguration
-            bootstrapCacheLoaderFactoryConfiguration) {
-        this.bootstrapCacheLoaderFactoryConfiguration = bootstrapCacheLoaderFactoryConfiguration;
-
     }
 
 }

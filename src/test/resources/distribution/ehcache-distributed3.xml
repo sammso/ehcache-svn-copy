@@ -112,16 +112,10 @@
     <defaultCache
             maxElementsInMemory="10"
             eternal="false"
-            timeToIdleSeconds="100"
-            timeToLiveSeconds="100"
-            overflowToDisk="true">
-        <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
-                                   properties="replicateAsynchronously=true,
-                                               replicatePuts=true,
-                                               replicateUpdates=true,
-                                               replicateUpdatesViaCopy=true,
-                                               replicateRemovals=true "/>
-    </defaultCache>
+            timeToIdleSeconds="5"
+            timeToLiveSeconds="10"
+            overflowToDisk="true"
+            />
 
 
     <!--Predefined caches.  Add your cache configuration settings here.
@@ -173,9 +167,6 @@
         <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
                                    properties="replicateAsynchronously=true, replicatePuts=true, replicateUpdates=true, replicateUpdatesViaCopy=true, replicateRemovals=true "/>
         <cacheEventListenerFactory class="net.sf.ehcache.event.CountingCacheEventListenerFactory"/>
-        <bootstrapCacheLoaderFactory class="net.sf.ehcache.distribution.RMIBootstrapCacheLoaderFactory"
-                                   properties="bootstrapAsynchronously=true,
-                                               maximumChunkSizeBytes=5000000"/>
     </cache>
 
     <!-- Sample cache named sampleCache2. -->

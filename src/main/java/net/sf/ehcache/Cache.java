@@ -16,8 +16,6 @@
 
 package net.sf.ehcache;
 
-import net.sf.ehcache.bootstrap.BootstrapCacheLoader;
-import net.sf.ehcache.event.CacheEventListener;
 import net.sf.ehcache.event.RegisteredEventListeners;
 import net.sf.ehcache.store.DiskStore;
 import net.sf.ehcache.store.MemoryStore;
@@ -33,7 +31,6 @@ import java.rmi.server.UID;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -54,7 +51,7 @@ import java.util.Set;
  * @author Greg Luck
  * @version $Id$
  */
-public class Cache implements Ehcache {
+public final class Cache implements Cloneable {
 
     /**
      * A reserved word for cache names. It denotes a default configuration
@@ -85,18 +82,9 @@ public class Cache implements Ehcache {
 
     private static final Log LOG = LogFactory.getLog(Cache.class.getName());
 
+    private static final int MS_PER_SECOND = 1000;
+
     private static final MemoryStoreEvictionPolicy DEFAULT_MEMORY_STORE_EVICTION_POLICY = MemoryStoreEvictionPolicy.LRU;
-
-
-    private static InetAddress localhost;
-
-    static {
-        try {
-            localhost = InetAddress.getLocalHost();
-        } catch (UnknownHostException e) {
-            LOG.error("Unable to set localhost. This prevents creation of a GUID. Cause was: " + e.getMessage(), e);
-        }
-    }
 
     private boolean disabled;
 
@@ -105,15 +93,13 @@ public class Cache implements Ehcache {
 
     private DiskStore diskStore;
 
-    private String diskStorePath;
+    private final String diskStorePath;
 
     private Status status;
 
     private final int maxElementsInMemory;
 
     private MemoryStoreEvictionPolicy memoryStoreEvictionPolicy;
-
-    private int statisticsAccuracy = Statistics.STATISTICS_ACCURACY_BEST_EFFORT;
 
     /**
      * Whether cache elements in this cache overflowToDisk.
@@ -188,11 +174,21 @@ public class Cache implements Ehcache {
 
     private RegisteredEventListeners registeredEventListeners;
 
-    private final String guid = new StringBuffer() .append(localhost) .append("-").append(new UID()).toString();
+    private String guid;
+
+    {
+        try {
+            guid = new StringBuffer()
+                    .append(InetAddress.getLocalHost())
+                    .append("-")
+                    .append(new UID())
+                    .toString();
+        } catch (UnknownHostException e) {
+            LOG.error("Could not create GUID: " + e.getMessage());
+        }
+    }
 
     private CacheManager cacheManager;
-
-    private BootstrapCacheLoader bootstrapCacheLoader;
 
     /**
      * 1.0 Constructor.
@@ -221,7 +217,7 @@ public class Cache implements Ehcache {
     public Cache(String name, int maxElementsInMemory, boolean overflowToDisk,
                  boolean eternal, long timeToLiveSeconds, long timeToIdleSeconds) {
         this(name, maxElementsInMemory, DEFAULT_MEMORY_STORE_EVICTION_POLICY, overflowToDisk,
-                null, eternal, timeToLiveSeconds, timeToIdleSeconds, false, DEFAULT_EXPIRY_THREAD_INTERVAL_SECONDS, null, null);
+                null, eternal, timeToLiveSeconds, timeToIdleSeconds, false, DEFAULT_EXPIRY_THREAD_INTERVAL_SECONDS, null);
     }
 
 
@@ -255,11 +251,8 @@ public class Cache implements Ehcache {
                  boolean diskPersistent,
                  long diskExpiryThreadIntervalSeconds) {
         this(name, maxElementsInMemory, DEFAULT_MEMORY_STORE_EVICTION_POLICY, overflowToDisk, null,
-                eternal, timeToLiveSeconds, timeToIdleSeconds, diskPersistent, diskExpiryThreadIntervalSeconds, null, null);
-        LOG.warn("An API change between ehcache-1.1 results in the persistence path being set to java.io.tmp when the " +
-                "ehcache-1.1 constructor is used. Please change to the 1.2 constructor");
+                eternal, timeToLiveSeconds, timeToIdleSeconds, diskPersistent, diskExpiryThreadIntervalSeconds, null);
     }
-
 
     /**
      * 1.2 Constructor
@@ -275,7 +268,7 @@ public class Cache implements Ehcache {
      * @param maxElementsInMemory
      * @param memoryStoreEvictionPolicy one of LRU, LFU and FIFO. Optionally null, in which case it will be set to LRU.
      * @param overflowToDisk
-     * @param diskStorePath             the directory to be used a disk store path. Uses java.io.tmpdir if the argument is null.
+     * @param diskStorePath
      * @param eternal
      * @param timeToLiveSeconds
      * @param timeToIdleSeconds
@@ -297,59 +290,6 @@ public class Cache implements Ehcache {
                  boolean diskPersistent,
                  long diskExpiryThreadIntervalSeconds,
                  RegisteredEventListeners registeredEventListeners) {
-        this(name,
-                maxElementsInMemory,
-                memoryStoreEvictionPolicy,
-                overflowToDisk,
-                diskStorePath,
-                eternal,
-                timeToLiveSeconds,
-                timeToIdleSeconds,
-                diskPersistent,
-                diskExpiryThreadIntervalSeconds,
-                registeredEventListeners,
-                null);
-    }
-
-
-    /**
-     * 1.2 Constructor
-     * <p/>
-     * The {@link net.sf.ehcache.config.ConfigurationFactory} and clients can create these.
-     * <p/>
-     * A client can specify their own settings here and pass the {@link Cache} object
-     * into {@link CacheManager#addCache} to specify parameters other than the defaults.
-     * <p/>
-     * Only the CacheManager can initialise them.
-     *
-     * @param name
-     * @param maxElementsInMemory
-     * @param memoryStoreEvictionPolicy one of LRU, LFU and FIFO. Optionally null, in which case it will be set to LRU.
-     * @param overflowToDisk
-     * @param diskStorePath             the directory to be used a disk store path. Uses java.io.tmpdir if the argument is null.
-     * @param eternal
-     * @param timeToLiveSeconds
-     * @param timeToIdleSeconds
-     * @param diskPersistent
-     * @param diskExpiryThreadIntervalSeconds
-     *
-     * @param bootstrapCacheLoader
-     * @param registeredEventListeners  a notification service. Optionally null, in which case a new
-     *                                  one with no registered listeners will be created.
-     * @since 1.2.1
-     */
-    public Cache(String name,
-                 int maxElementsInMemory,
-                 MemoryStoreEvictionPolicy memoryStoreEvictionPolicy,
-                 boolean overflowToDisk,
-                 String diskStorePath,
-                 boolean eternal,
-                 long timeToLiveSeconds,
-                 long timeToIdleSeconds,
-                 boolean diskPersistent,
-                 long diskExpiryThreadIntervalSeconds,
-                 RegisteredEventListeners registeredEventListeners,
-                 BootstrapCacheLoader bootstrapCacheLoader) {
         this.name = name;
         this.maxElementsInMemory = maxElementsInMemory;
         this.memoryStoreEvictionPolicy = memoryStoreEvictionPolicy;
@@ -358,7 +298,6 @@ public class Cache implements Ehcache {
         this.timeToLiveSeconds = timeToLiveSeconds;
         this.timeToIdleSeconds = timeToIdleSeconds;
         this.diskPersistent = diskPersistent;
-
         if (diskStorePath == null) {
             this.diskStorePath = System.getProperty("java.io.tmpdir");
         } else {
@@ -383,8 +322,6 @@ public class Cache implements Ehcache {
             this.memoryStoreEvictionPolicy = DEFAULT_MEMORY_STORE_EVICTION_POLICY;
         }
 
-        this.bootstrapCacheLoader = bootstrapCacheLoader;
-
         changeStatus(Status.STATUS_UNINITIALISED);
     }
 
@@ -394,35 +331,31 @@ public class Cache implements Ehcache {
      * <p/>
      * This method creates those and makes the cache ready to accept elements
      */
-    public void initialise() {
-        synchronized (this) {
-            if (!status.equals(Status.STATUS_UNINITIALISED)) {
-                throw new IllegalStateException("Cannot initialise the " + name
-                        + " cache because its status is not STATUS_UNINITIALISED");
-            }
-
-            if (maxElementsInMemory == 0) {
-                if (LOG.isWarnEnabled()) {
-                    LOG.warn("Cache: " + name + " has a maxElementsInMemory of 0. It is strongly recommended to " +
-                            "have a maximumSize of at least 1. Performance is halved by not using a MemoryStore.");
-                }
-            }
-
-            if (overflowToDisk) {
-                diskStore = new DiskStore(this, diskStorePath);
-            }
-
-            memoryStore = MemoryStore.create(this, diskStore);
-
-
-            if (diskPersistent) {
-                addShutdownHook();
-            }
-
-            changeStatus(Status.STATUS_ALIVE);
-
-
+    final synchronized void initialise() {
+        if (!status.equals(Status.STATUS_UNINITIALISED)) {
+            throw new IllegalStateException("Cannot initialise the " + name
+                    + " cache because its status is not STATUS_UNINITIALISED");
         }
+
+        if (maxElementsInMemory == 0) {
+            if (LOG.isWarnEnabled()) {
+                LOG.warn("Cache: " + name + " has a maxElementsInMemory of 0. It is strongly recommended to " +
+                        "have a maximumSize of at least 1. Performance is halved by not using a MemoryStore.");
+            }
+        }
+
+        if (overflowToDisk) {
+            diskStore = new DiskStore(this, diskStorePath);
+        }
+
+        memoryStore = MemoryStore.create(this, diskStore);
+
+
+        if (diskPersistent) {
+            addShutdownHook();
+        }
+
+        changeStatus(Status.STATUS_ALIVE);
 
         if (LOG.isDebugEnabled()) {
             LOG.debug("Initialised cache: " + name);
@@ -434,17 +367,7 @@ public class Cache implements Ehcache {
                         + " property was set to true. No elements will be added to the cache.");
             }
         }
-    }
 
-    /**
-     * Bootstrap command. This must be called after the Cache is intialised, during
-     * CacheManager initialisation. If loads are synchronous, they will complete before the CacheManager
-     * initialise completes, otherwise they will happen in the background.
-     */
-    public void bootstrap() {
-        if (!disabled && bootstrapCacheLoader != null) {
-            bootstrapCacheLoader.load(this);
-        }
 
     }
 
@@ -466,10 +389,8 @@ public class Cache implements Ehcache {
                         // removeShutdownHook to remove it during shutdown
                         Cache.this.shutdownHook = null;
 
-                        if (LOG.isDebugEnabled()) {
                         LOG.debug("VM shutting down with the disk store for " + name
                                 + " still active. The disk store is persistent. Calling dispose...");
-                        }
                         dispose();
                     }
                 }
@@ -560,12 +481,6 @@ public class Cache implements Ehcache {
             elementExists = isElementInMemory(key) || isElementOnDisk(key);
         }
 
-        if (elementExists) {
-            element.updateUpdateStatistics();
-        } else {
-            applyDefaultsToElementWithoutLifespanSet(element);
-        }
-
         memoryStore.put(element);
 
         if (elementExists) {
@@ -574,15 +489,6 @@ public class Cache implements Ehcache {
             registeredEventListeners.notifyElementPut(element, doNotNotifyCacheReplicators);
         }
 
-    }
-
-    private void applyDefaultsToElementWithoutLifespanSet(Element element) {
-        if (!element.isLifespanSet()) {
-            //Setting with Cache defaults
-            element.setTimeToLive((int) timeToLiveSeconds);
-            element.setTimeToIdle((int) timeToIdleSeconds);
-            element.setEternal(eternal);
-        }
     }
 
 
@@ -605,9 +511,6 @@ public class Cache implements Ehcache {
         if (element == null) {
             throw new IllegalArgumentException("Element cannot be null");
         }
-
-        applyDefaultsToElementWithoutLifespanSet(element);
-
         memoryStore.put(element);
     }
 
@@ -707,7 +610,7 @@ public class Cache implements Ehcache {
     }
 
     /**
-     * Returns a list of all element keys in the cache, whether or not they are expired.
+     * Returns a list of all elements in the cache, whether or not they are expired.
      * <p/>
      * The returned keys are unique and can be considered a set.
      * <p/>
@@ -746,7 +649,7 @@ public class Cache implements Ehcache {
     }
 
     /**
-     * Returns a list of all element keys in the cache. Only keys of non-expired
+     * Returns a list of all elements in the cache. Only keys of non-expired
      * elements are returned.
      * <p/>
      * The returned keys are unique and can be considered a set.
@@ -1017,7 +920,7 @@ public class Cache implements Ehcache {
      *
      * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
      */
-    public final synchronized void removeAll() throws IllegalStateException, CacheException {
+    public final synchronized void removeAll() throws IllegalStateException, IOException, CacheException {
         checkStatus();
         memoryStore.removeAll();
         if (overflowToDisk) {
@@ -1032,7 +935,7 @@ public class Cache implements Ehcache {
      *
      * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
      */
-    public synchronized void dispose() throws IllegalStateException {
+    final synchronized void dispose() throws IllegalStateException {
         checkStatus();
         memoryStore.dispose();
         memoryStore = null;
@@ -1097,7 +1000,7 @@ public class Cache implements Ehcache {
     public final synchronized int getSize() throws IllegalStateException, CacheException {
         checkStatus();
         /* The memory store and the disk store can simultaneously contain elements with the same key
-            Cache size is the size of the union of the two key sets.*/
+Cache size is the size of the union of the two key sets.*/
         return getKeys().size();
     }
 
@@ -1165,8 +1068,11 @@ public class Cache implements Ehcache {
      * The number of times a requested item was found in the cache.
      *
      * @return the number of times a requested item was found in the cache
+     * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
      */
-    public final int getHitCount() {
+    public final int getHitCount()
+            throws IllegalStateException {
+        checkStatus();
         return hitCount;
     }
 
@@ -1174,15 +1080,20 @@ public class Cache implements Ehcache {
      * Number of times a requested item was found in the Memory Store.
      *
      * @return Number of times a requested item was found in the Memory Store.
+     * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
      */
-    public final int getMemoryStoreHitCount() {
+    public final int getMemoryStoreHitCount() throws IllegalStateException {
+        checkStatus();
         return memoryStoreHitCount;
     }
 
     /**
      * Number of times a requested item was found in the Disk Store.
+     *
+     * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
      */
-    public final int getDiskStoreHitCount() {
+    public final int getDiskStoreHitCount() throws IllegalStateException {
+        checkStatus();
         return diskStoreHitCount;
     }
 
@@ -1190,15 +1101,21 @@ public class Cache implements Ehcache {
      * Number of times a requested element was not found in the cache. This
      * may be because it expired, in which case this will also be recorded in {@link #getMissCountExpired},
      * or because it was simply not there.
+     *
+     * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
      */
-    public final int getMissCountNotFound() {
+    public final int getMissCountNotFound() throws IllegalStateException {
+        checkStatus();
         return missCountNotFound;
     }
 
     /**
      * Number of times a requested element was found but was expired.
+     *
+     * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
      */
-    public final int getMissCountExpired() {
+    public final int getMissCountExpired() throws IllegalStateException {
+        checkStatus();
         return missCountExpired;
     }
 
@@ -1214,7 +1131,7 @@ public class Cache implements Ehcache {
      *
      * @param name the name of the cache. Should not be null.
      */
-    public final void setName(String name) {
+    final void setName(String name) {
         this.name = name;
     }
 
@@ -1314,9 +1231,53 @@ public class Cache implements Ehcache {
      */
     public final boolean isExpired(Element element) throws IllegalStateException, NullPointerException {
         checkStatus();
+        boolean expired;
         synchronized (element) {
-            return element.isExpired();
+            if (!eternal) {
+                expired = checkExpirationForNotEternal(element);
+            } else {
+                expired = false;
+            }
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(getName() + ": Is element with key " + element.getObjectKey() + " expired?: " + expired);
+            }
+            return expired;
         }
+    }
+
+    private boolean checkExpirationForNotEternal(Element element) {
+        boolean expired;
+        long now = System.currentTimeMillis();
+        long creationTime = element.getCreationTime();
+        long ageLived = now - creationTime;
+        long ageToLive = timeToLiveSeconds * MS_PER_SECOND;
+        long nextToLastAccessTime = element.getNextToLastAccessTime();
+        long mostRecentTime = Math.max(creationTime, nextToLastAccessTime);
+        long ageIdled = now - mostRecentTime;
+        long ageToIdle = timeToIdleSeconds * MS_PER_SECOND;
+
+        if (LOG.isTraceEnabled()) {
+            LOG.trace(element.getObjectKey() + " now: " + now);
+            LOG.trace(element.getObjectKey() + " Creation Time: " + creationTime
+                    + " Next To Last Access Time: " + nextToLastAccessTime);
+            LOG.trace(element.getObjectKey() + " mostRecentTime: " + mostRecentTime);
+            LOG.trace(element.getObjectKey() + " Age to Idle: " + ageToIdle + " Age Idled: " + ageIdled);
+        }
+
+        if (timeToLiveSeconds != 0 && (ageLived > ageToLive)) {
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("timeToLiveSeconds exceeded : " + element.getObjectKey());
+            }
+            expired = true;
+        } else if (timeToIdleSeconds != 0 && (ageIdled > ageToIdle)) {
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("timeToIdleSeconds exceeded : " + element.getObjectKey());
+            }
+            expired = true;
+        } else {
+            expired = false;
+        }
+        return expired;
     }
 
 
@@ -1341,20 +1302,8 @@ public class Cache implements Ehcache {
         {
             copy.registeredEventListeners = new RegisteredEventListeners(copy);
         } else {
-            copy.registeredEventListeners = new RegisteredEventListeners(copy);
-            Set cacheEventListeners = registeredEventListeners.getCacheEventListeners();
-            for (Iterator iterator = cacheEventListeners.iterator(); iterator.hasNext();) {
-                CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-                CacheEventListener cacheEventListenerClone = (CacheEventListener) cacheEventListener.clone();
-                copy.registeredEventListeners.registerListener(cacheEventListenerClone);
-            }
+            throw new CloneNotSupportedException("Cannot clone a cache with registered event listeners");
         }
-
-        if (bootstrapCacheLoader != null) {
-            BootstrapCacheLoader bootstrapCacheLoaderClone = (BootstrapCacheLoader) bootstrapCacheLoader.clone();
-            copy.setBootstrapCacheLoader(bootstrapCacheLoaderClone);
-        }
-
         return copy;
     }
 
@@ -1467,216 +1416,13 @@ public class Cache implements Ehcache {
         return cacheManager;
     }
 
-
-    /**
-     * Resets statistics counters back to 0.
-     *
-     * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
-     */
-    public synchronized void clearStatistics() throws IllegalStateException {
-        checkStatus();
-        hitCount = 0;
-        memoryStoreHitCount = 0;
-        diskStoreHitCount = 0;
-        missCountExpired = 0;
-        missCountNotFound = 0;
-    }
-
-    /**
-     * Accurately measuring statistics can be expensive. Returns the current accuracy setting.
-     *
-     * @return one of {@link Statistics#STATISTICS_ACCURACY_BEST_EFFORT}, {@link Statistics#STATISTICS_ACCURACY_GUARANTEED}, {@link Statistics#STATISTICS_ACCURACY_NONE}
-     */
-    public int getStatisticsAccuracy() {
-        return statisticsAccuracy;
-    }
-
-    /**
-     * Sets the statistics accuracy.
-     *
-     * @param statisticsAccuracy one of {@link Statistics#STATISTICS_ACCURACY_BEST_EFFORT}, {@link Statistics#STATISTICS_ACCURACY_GUARANTEED}, {@link Statistics#STATISTICS_ACCURACY_NONE}
-     */
-    public void setStatisticsAccuracy(int statisticsAccuracy) {
-        this.statisticsAccuracy = statisticsAccuracy;
-    }
-
-    /**
-     * Causes all elements stored in the Cache to be synchronously checked for expiry, and if expired, evicted.
-     */
-    public void evictExpiredElements() {
-        Object[] keys = memoryStore.getKeyArray();
-        synchronized (this) {
-            for (int i = 0; i < keys.length; i++) {
-                Object key = keys[i];
-                searchInMemoryStore(key, false);
-            }
-        }
-        //This is called regularly by the expiry thread, but call it here synchronously
-        diskStore.expireElements();
-    }
-
-    /**
-     * An inexpensive check to see if the key exists in the cache.
-     * <p/>
-     * This method is not synchronized. It is possible that an element may exist in the cache aned be removed
-     * before the check gets to it, or vice versa.
-     *
-     * @param key the key to check.
-     * @return true if an Element matching the key is found in the cache. No assertions are made about the state of the Element.
-     */
-    public boolean isKeyInCache(Object key) {
-        if (isElementInMemory(key)) {
-            return true;
-        } else {
-            return isElementOnDisk(key);
-        }
-    }
-
-    /**
-     * An extremely expensive check to see if the value exists in the cache. This implementation is O(n). Ehcache
-     * is not designed for efficient access in this manner.
-     * <p/>
-     * This method is not synchronized. It is possible that an element may exist in the cache aned be removed
-     * before the check gets to it, or vice versa. Because it is slow to execute the probability of that this will
-     * have happened.
-     *
-     * @param value to check for
-     * @return true if an Element matching the key is found in the cache. No assertions are made about the state of the Element.
-     */
-    public boolean isValueInCache(Object value) {
-        List keys = getKeys();
-        for (int i = 0; i < keys.size(); i++) {
-            Element element = (Element) keys.get(i);
-            if (element != null && element.getObjectValue().equals(value)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * {@inheritDoc}
-     * <p/>
-     * Note, the {@link #getSize} method will have the same value as the size reported by Statistics
-     * for the statistics accuracy of {@link Statistics#STATISTICS_ACCURACY_BEST_EFFORT}.
-     */
-    public Statistics getStatistics() throws IllegalStateException {
-        int size = 0;
-        if (statisticsAccuracy == Statistics.STATISTICS_ACCURACY_BEST_EFFORT) {
-            size = getSize();
-        } else if (statisticsAccuracy == Statistics.STATISTICS_ACCURACY_GUARANTEED) {
-            size = getKeysWithExpiryCheck().size();
-        } else if (statisticsAccuracy == Statistics.STATISTICS_ACCURACY_NONE) {
-            size = getKeysNoDuplicateCheck().size();
-        }
-        return new Statistics(this, statisticsAccuracy, hitCount, diskStoreHitCount, memoryStoreHitCount,
-                missCountExpired + missCountNotFound, size);
-    }
-
     /**
      * Package local setter for use by CacheManager
      *
      * @param cacheManager
      */
-    public void setCacheManager(CacheManager cacheManager) {
+    final void setCacheManager(CacheManager cacheManager) {
         this.cacheManager = cacheManager;
-    }
-
-
-    /**
-     * Accessor for the BootstrapCacheLoader associated with this cache. For testing purposes.
-     */
-    public BootstrapCacheLoader getBootstrapCacheLoader() {
-        return bootstrapCacheLoader;
-    }
-
-    /**
-     * Sets the bootstrap cache loader.
-     *
-     * @param bootstrapCacheLoader the loader to be used
-     * @throws CacheException if this method is called after the cache is initialized
-     */
-    public void setBootstrapCacheLoader(BootstrapCacheLoader bootstrapCacheLoader) throws CacheException {
-        if (!status.equals(Status.STATUS_UNINITIALISED)) {
-            throw new CacheException("A bootstrap cache loader can only be set before the cache is initialized. " + name);
-        }
-        this.bootstrapCacheLoader = bootstrapCacheLoader;
-    }
-
-
-    /**
-     * DiskStore paths can conflict between CacheManager instances. This method allows the path to be changed.
-     *
-     * @param diskStorePath the new path to be used.
-     * @throws CacheException if this method is called after the cache is initialized
-     */
-    public void setDiskStorePath(String diskStorePath) throws CacheException {
-        if (!status.equals(Status.STATUS_UNINITIALISED)) {
-            throw new CacheException("A DiskStore path can only be set before the cache is initialized. " + name);
-        }
-        this.diskStorePath = diskStorePath;
-    }
-
-
-    /**
-     * An equals method which follows the contract of {@link Object#equals(Object)}
-     * @param object the reference object with which to compare.
-     * @return <code>true</code> if this object is the same as the obj
-     *         argument; <code>false</code> otherwise. Same for a Cache means, the same GUID
-     * @see #hashCode()
-     * @see java.util.Hashtable
-     */
-    public boolean equals(Object object) {
-        if (object == null) {
-            return false;
-        }
-        if (!(object instanceof Ehcache)) {
-            return false;
-        }
-        Ehcache other = (Ehcache) object;
-        return guid.equals(other.getGuid());
-    }
-
-
-    /**
-     * Returns a hash code value for the object. This method is
-     * supported for the benefit of hashtables such as those provided by
-     * <code>java.util.Hashtable</code>.
-     * <p/>
-     * The general contract of <code>hashCode</code> is:
-     * <ul>
-     * <li>Whenever it is invoked on the same object more than once during
-     * an execution of a Java application, the <tt>hashCode</tt> method
-     * must consistently return the same integer, provided no information
-     * used in <tt>equals</tt> comparisons on the object is modified.
-     * This integer need not remain consistent from one execution of an
-     * application to another execution of the same application.
-     * <li>If two objects are equal according to the <tt>equals(Object)</tt>
-     * method, then calling the <code>hashCode</code> method on each of
-     * the two objects must produce the same integer result.
-     * <li>It is <em>not</em> required that if two objects are unequal
-     * according to the {@link Object#equals(Object)}
-     * method, then calling the <tt>hashCode</tt> method on each of the
-     * two objects must produce distinct integer results.  However, the
-     * programmer should be aware that producing distinct integer results
-     * for unequal objects may improve the performance of hashtables.
-     * </ul>
-     * <p/>
-     * As much as is reasonably practical, the hashCode method defined by
-     * class <tt>Object</tt> does return distinct integers for distinct
-     * objects. (This is typically implemented by converting the internal
-     * address of the object into an integer, but this implementation
-     * technique is not required by the
-     * Java<font size="-2"><sup>TM</sup></font> programming language.)
-     * <p/>
-     * This implementation use the GUID of the cache.
-     *
-     * @return a hash code value for this object.
-     * @see Object#equals(Object)
-     * @see java.util.Hashtable
-     */
-    public int hashCode() {
-        return guid.hashCode();
     }
 
 

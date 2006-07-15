@@ -16,10 +16,10 @@
 
 package net.sf.ehcache.store;
 
-import net.sf.ehcache.AbstractCacheTest;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.MemoryStoreTester;
 import net.sf.ehcache.StopWatch;
+import net.sf.ehcache.AbstractCacheTest;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -147,9 +147,6 @@ public class LfuMemoryStoreTest extends MemoryStoreTester {
         store.put(element);
         assertEquals(4, store.getSize());
         assertNull(store.get("key4"));
-
-
-
     }
 
     /**
@@ -262,7 +259,7 @@ public class LfuMemoryStoreTest extends MemoryStoreTester {
      * S        No
      * 10       291 94.18% confidence
      * 20       15
-     * 30       11536 1 99.99% confidence
+     * 30 11536 1 99.99% confidence
      * <p/>
      * For those with a statistical background the branch of stats which deals with this is hypothesis testing and
      * the Student's T distribution. The higher your sample the greater confidence you can have in a hypothesis, in
@@ -321,7 +318,7 @@ public class LfuMemoryStoreTest extends MemoryStoreTester {
         LOG.info("Find time: " + findTime);
         assertTrue(findTime < 1500);
         LOG.info("Selections not in lowest quartile: " + lowestQuarterNotIdentified);
-        assertTrue(lowestQuarterNotIdentified < 5);
+        assertTrue(lowestQuarterNotIdentified < 3);
 
     }
 

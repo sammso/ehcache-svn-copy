@@ -143,18 +143,10 @@
     <defaultCache
             maxElementsInMemory="10"
             eternal="false"
-            timeToIdleSeconds="100"
-            timeToLiveSeconds="100"
-            overflowToDisk="true">
-        <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
-                                   properties="replicateAsynchronously=true,
-                                               replicatePuts=true,
-                                               replicateUpdates=true,
-                                               replicateUpdatesViaCopy=true,
-                                               replicateRemovals=true "/>
-
-        <bootstrapCacheLoaderFactory class="net.sf.ehcache.distribution.RMIBootstrapCacheLoaderFactory" />
-    </defaultCache>
+            timeToIdleSeconds="5"
+            timeToLiveSeconds="10"
+            overflowToDisk="true"
+            />
 
 
     <!--Predefined caches.  Add your cache configuration settings here.
@@ -203,9 +195,6 @@
            memoryStoreEvictionPolicy="LRU"
            diskExpiryThreadIntervalSeconds="1000"
             >
-        <bootstrapCacheLoaderFactory class="net.sf.ehcache.distribution.RMIBootstrapCacheLoaderFactory"
-                                   properties="bootstrapAsynchronously=true,
-                                               maximumChunkSizeBytes=5000000"/>
         <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
                                    properties="replicateAsynchronously=true,
                                                replicatePuts=true,
@@ -234,7 +223,6 @@
            overflowToDisk="true">
         <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
                                    properties="replicateAsynchronously=false, replicatePuts=true, replicateUpdates=true, replicateUpdatesViaCopy=true, replicateRemovals=true "/>
-        <bootstrapCacheLoaderFactory class="net.sf.ehcache.distribution.RMIBootstrapCacheLoaderFactory" />
     </cache>
 
     <!-- Sample cache named sampleCache4. All missing RMICacheReplicatorFactory properties default to true -->
@@ -244,9 +232,6 @@
            overflowToDisk="false"
            memoryStoreEvictionPolicy="LFU">
         <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"/>
-        <bootstrapCacheLoaderFactory class="net.sf.ehcache.distribution.RMIBootstrapCacheLoaderFactory"
-                                   properties="bootstrapAsynchronously=false,
-                                               maximumChunkSizeBytes=10000"/>
     </cache>
 
     <!-- Sample cache names sampleCache5. The missing replicatePuts will default to true -->

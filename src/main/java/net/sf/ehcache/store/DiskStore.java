@@ -17,8 +17,8 @@
 
 package net.sf.ehcache.store;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.Status;
 import net.sf.ehcache.event.RegisteredEventListeners;
@@ -85,9 +85,7 @@ public class DiskStore implements Store {
     private Thread spoolThread;
     private Thread expiryThread;
 
-    private volatile int lastElementSize;
-
-    private Ehcache cache;
+    private Cache cache;
 
     /**
      * If persistent, the disk file will be kept
@@ -119,7 +117,7 @@ public class DiskStore implements Store {
      * @param cache    the {@link net.sf.ehcache.Cache} that the store is part of
      * @param diskPath the directory in which to create data and index files
      */
-    public DiskStore(Ehcache cache, String diskPath) {
+    public DiskStore(Cache cache, String diskPath) {
         status = Status.STATUS_UNINITIALISED;
         this.cache = cache;
         name = cache.getName();
@@ -167,23 +165,12 @@ public class DiskStore implements Store {
         deleteIndexIfNoData();
 
         if (persistent) {
-            //if diskpath contains auto generated string
-            if (diskPath.indexOf(AUTO_DISK_PATH_DIRECTORY_PREFIX) != -1) {
-                LOG.warn("Data in persistent disk stores is ignored for stores from automatically created directories"
-                        + " (they start with " + AUTO_DISK_PATH_DIRECTORY_PREFIX + ").\n"
-                        + "Remove diskPersistent or resolve the conflicting disk paths in cache configuration.\n"
-                        + "Deleting data file " + getDataFileName());
-                dataFile.delete();
-            } else if (!readIndex()) {
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug("Index file dirty or empty. Deleting data file " + getDataFileName());
-                }
+            if (!readIndex()) {
+                LOG.debug("Index file dirty or empty. Deleting data file " + getDataFileName());
                 dataFile.delete();
             }
         } else {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Deleting data file " + getDataFileName());
-            }
+            LOG.debug("Deleting data file " + getDataFileName());
             dataFile.delete();
             indexFile = null;
         }
@@ -196,9 +183,7 @@ public class DiskStore implements Store {
         boolean dataFileExists = dataFile.exists();
         boolean indexFileExists = indexFile.exists();
         if (!dataFileExists && indexFileExists) {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Matching data file missing for index file. Deleting index file " + getIndexFileName());
-            }
+            LOG.debug("Matching data file missing for index file. Deleting index file " + getIndexFileName());
             indexFile.delete();
         }
     }
@@ -471,7 +456,7 @@ public class DiskStore implements Store {
             for (int i = 0; i < keys.length; i++) {
                 Serializable key = (Serializable) keys[i];
                 Element element = remove(key);
-                if (element.isExpired()) {
+                if (cache.isExpired(element)) {
                     listeners.notifyElementExpiry(element, false);
                 } else {
                     listeners.notifyElementRemoved(element, false);
@@ -496,18 +481,11 @@ public class DiskStore implements Store {
 
         // Close the cache
         try {
-            //stop the expiry thread
             if (expiryThread != null) {
                 expiryThread.interrupt();
             }
 
-
             flush();
-
-            //stop the spool thread
-            if (spoolThread != null) {
-                spoolThread.interrupt();
-            }
 
             //Clear in-memory data structures
             spool.clear();
@@ -587,7 +565,6 @@ public class DiskStore implements Store {
         }
     }
 
-
     /**
      * Flushes all spooled elements to disk.
      * Note that the cache is locked for the entire time that the spool is being flushed.
@@ -624,12 +601,9 @@ public class DiskStore implements Store {
     }
 
 
-
-
     private void writeElement(Element element, Serializable key) throws IOException {
         try {
             int bufferLength;
-            long expirationTime = element.getExpirationTime();
 
             MemoryEfficientByteArrayOutputStream buffer = null;
             try {
@@ -648,7 +622,19 @@ public class DiskStore implements Store {
 
             // Add to index, update stats
             diskElement.payloadSize = bufferLength;
-            diskElement.expiryTime = expirationTime;
+
+
+            if (cache.isEternal()) {
+                // Never expires
+                diskElement.expiryTime = Long.MAX_VALUE;
+            } else {
+                // Calculate expiry time
+                long timeToLive = element.getCreationTime() + cache.getTimeToLiveSeconds() * MS_PER_SECOND;
+                long timeToIdle = element.getLastAccessTime() + cache.getTimeToIdleSeconds() * MS_PER_SECOND;
+                diskElement.expiryTime = Math.max(timeToLive, timeToIdle);
+            }
+
+
             totalSize += bufferLength;
             synchronized (diskElements) {
                 diskElements.put(key, diskElement);
@@ -681,6 +667,7 @@ public class DiskStore implements Store {
 
         /**
          * Gets the bytes. Not all may be valid. Use only up to getSize()
+         *
          * @return the underlying byte[]
          */
         public synchronized byte getBytes()[] {
@@ -736,6 +723,7 @@ public class DiskStore implements Store {
         return diskElement;
     }
 
+
     /**
      * Writes the Index to disk on shutdown
      * <p/>
@@ -782,9 +770,7 @@ public class DiskStore implements Store {
                 LOG.error("Corrupt index file. Creating new index.");
             } catch (IOException e) {
                 //normal when creating the cache for the first time
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug("IOException reading index. Creating new index. ");
-                }
+                LOG.debug("IOException reading index. Creating new index. ");
             } catch (ClassNotFoundException e) {
                 LOG.error("Class loading problem reading index. Creating new index. Initial cause was " + e.getMessage(), e);
             } finally {
@@ -815,14 +801,10 @@ public class DiskStore implements Store {
     private void createNewIndexFile() throws IOException {
         if (indexFile.exists()) {
             indexFile.delete();
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Index file " + indexFile + " deleted.");
-            }
+            LOG.debug("Index file " + indexFile + " deleted.");
         }
         if (indexFile.createNewFile()) {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Index file " + indexFile + " created successfully");
-            }
+            LOG.debug("Index file " + indexFile + " created successfully");
         } else {
             throw new IOException("Index file " + indexFile + " could not created.");
         }
@@ -836,38 +818,35 @@ public class DiskStore implements Store {
      */
     private void expiryThreadMain() {
         long expiryThreadIntervalMillis = expiryThreadInterval * MS_PER_SECOND;
-        while (active) {
-            try {
+        try {
+            while (active) {
                 Thread.sleep(expiryThreadIntervalMillis);
+
+                //Expire the elements
                 expireElements();
-            } catch (InterruptedException e) {
-                if (LOG.isDebugEnabled()) {
-                    LOG.debug(name + "Cache: Expiry thread interrupted on Disk Store.");
-                }
-                return;
-            } catch (Throwable t) {
-                LOG.warn(name + "Cache: Expiry thread throwable caught. Message was: "
-                        + t.getMessage() + ". Contimuing...", t);
+            }
+        } catch (InterruptedException e) {
+            // Bail on interruption
+            if (LOG.isDebugEnabled()) {
+                LOG.debug(name + "Cache: Expiry thread interrupted on Disk Store.");
             }
         }
     }
 
     /**
      * Removes expired elements.
-     * <p/>
-     * Note that the DiskStore cannot efficiently expire based on TTI. It does it on TTL. However any gets out
-     * of the DiskStore are check for both before return.
+     * Note that the cache is locked for the entire time that elements are being expired.
      *
      * @noinspection SynchronizeOnNonFinalField
      */
-    public void expireElements() {
+    private void expireElements() {
         final long now = System.currentTimeMillis();
 
         // Clean up the spool
         synchronized (spool) {
             for (Iterator iterator = spool.values().iterator(); iterator.hasNext();) {
                 final Element element = (Element) iterator.next();
-                if (element.isExpired()) {
+                if (cache.isExpired(element)) {
                     // An expired element
                     if (LOG.isDebugEnabled()) {
                         LOG.debug(name + "Cache: Removing expired spool element " + element.getObjectKey());
@@ -939,16 +918,6 @@ public class DiskStore implements Store {
                 .append(", expiryThreadInterval = ").append(expiryThreadInterval)
                 .append(" ]");
         return sb.toString();
-    }
-
-    /**
-     * Generates a unique directory name for use in automatically creating a diskStorePath where there is a conflict.
-     *
-     * @return a path consisting of {@link #AUTO_DISK_PATH_DIRECTORY_PREFIX} followed by "_" followed by the current
-     *         time as a long e.g. ehcache_auto_created_1149389837006
-     */
-    public static String generateUniqueDirectory() {
-        return DiskStore.AUTO_DISK_PATH_DIRECTORY_PREFIX + "_" + System.currentTimeMillis();
     }
 
 

@@ -1,10 +1,18 @@
+ ------
+ Frequently Asked Questions
+ ------
+ ------
+ Date
+ ------
+
+
 Frequently Asked Questions
 
-* Does ehcache run on {JDK1.3}?
+* Does ehcache run on JDK1.3?
 
- Yes. It runs on JDK1.3, 1.4 and 5. The restriction for JDK1.3 is
-  that you must either use the precompiled ehcache.jar or build
-it using JDK1.4 with a target of 1.3. This is because ehcache makes use of some JDK1.4
+ Yes. It runs on JDK1.2, 1.3, 1.4 and 5. The restriction for JDK1.3 and
+JDK1.2 is that you must either use the precompiled ehcache.jar or build
+it using JDK1.4. This is because ehcache makes use of some JDK1.4
 features but substitutes alternatives at runtime if it does not find
 those features.
 
@@ -16,8 +24,6 @@ approach accessible with the getInstance(...) method is still available
 too. Remember that ehcache can supports hundreds of
 caches within one CacheManager. You would use separate CacheManagers
 where you want quite different configurations.
-
- The Hibernate EhCacheProvider has also been updated to support this behaviour.
 
 * Can you use ehcache with Hibernate and outside of Hibernate at the same time?
 
@@ -46,7 +52,8 @@ recently used ("LRU") element is removed. Used in this case means
 inserted with a put or accessed with a get.
 
  If the overflowToDisk cache attribute is false, the LRU Element is
- discarded. If true, it is transferred asynchronously to the DiskStore.
+discarded. If true,
+it is transferred asynchronously to the DiskStore.
 
 * Is it thread safe to modify Element values after retrieval from a Cache?
 
@@ -156,11 +163,11 @@ CacheManagerTest#testCreateShutdownCreate()
 
  You need to add a newly created cache to a CacheManager before it gets intialised. Use code like the following:
  
----------------------------------
++-------------------------------+
    CacheManager manager = CacheManager.create();
    Cache myCache = new Cache("testDiskOnly", 0, true, false, 5, 2);
    manager.addCache(myCache);
----------------------------------
++-------------------------------+
 
 * Is there a simple way to disable ehcache when testing?
 
@@ -168,94 +175,4 @@ CacheManagerTest#testCreateShutdownCreate()
  Set the property "net.sf.ehcache.disabled=true" to disable ehcache.
 
  This can easily be done using <<<-Dnet.sf.ehcache.disabled=true>>>> in the command line.
-
-* Is there a Maven bundle for ehcache?
-
- Yes. http://www.ibiblio.org/maven/net.sf.ehcache/ for ehcache-1.2 and higher.
-
- http://www.ibiblio.org/maven/ehcache/ for earlier versions.
-
-
-* How do I dynamically change Cache attributes at runtime?
-
-    You can't but you can achieve the same result as follows:
-
-    Cache cache = new Cache("test2", 1, true, true, 0, 0, true, 120, ...);
-    cacheManager.addCache(cache);
-
-    See the JavaDoc for the full parameters, also reproduced here:
-     
-    Having created the new cache, get a list of keys using cache.getKeys, then get each one and put it in the new cache.
-    None of this will use much memory because the new cache element have values that reference the same data as the original cache.
-    Then use cacheManager.removeCache("oldcachename") to remove the original cache.
-
-* I get net.sf.ehcache.distribution.RemoteCacheException: Error doing put to
- remote peerremote peer. Message was: Error unmarshaling return header; nested
- exception is: java.net.SocketTimeoutException: Read timed out. What does this mean.
-
-    It typically means you need to increase your socketTimeoutMillis. This is the amount of time a sender
-     should wait for the call to the remote peer to complete. How long it takes depends on the network and
-     the size of the Elements being replicated. 
-
-    The configuration that controls this is the socketTimeoutMillis setting in cacheManagerPeerListenerFactory.
-    120000 seems to work well for most scenarios.
-
-
----
-    <cacheManagerPeerListenerFactory
-            class="net.sf.ehcache.distribution.RMICacheManagerPeerListenerFactory"
-            properties="hostName=fully_qualified_hostname_or_ip,
-                        port=40001,
-                        socketTimeoutMillis=120000"/>
----
-
-* Should I use this directive when doing distributed caching? <cacheManagerEventListenerFactory class="" properties=""/>
-
-    No. It is unrelated. It is for listening to changes in your local CacheManager.
-
-
-* What is the minimum config to get distributed caching going?
-
-     The minimum configuration you need to get distributed going is:
-
----
-    <cacheManagerPeerProviderFactory
-            class="net.sf.ehcache.distribution.RMICacheManagerPeerProviderFactory"
-            properties="peerDiscovery=automatic,
-                        multicastGroupAddress=230.0.0.1,
-                        multicastGroupPort=4446"/>
-
-
-<cacheManagerPeerListenerFactory
-class="net.sf.ehcache.distribution.RMICacheManagerPeerListenerFactory"/>
-
----
-
-    and then at least one cache declaration with
-
----
-<cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"/>>>>
----
-
-    in it. An example cache is:
-
----
-
-    <cache name="sampleDistributedCache1"
-           maxElementsInMemory="10"
-           eternal="false"
-           timeToIdleSeconds="100"
-           timeToLiveSeconds="100"
-           overflowToDisk="false">
-        <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"/>
-    </cache>
----
-
-    Each server in the cluster can have the same config.
-
-* How can I see if distributed caching is working?
-
-    You should see the listener port open on each server.
-
-    You can use the distributed debug tool to see what is going on. (See {{{http://ehcache.sourceforge.net/documentation/logging.html}}}).
 

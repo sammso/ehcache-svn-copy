@@ -33,11 +33,10 @@ import java.util.List;
  * diskPersistent="true"
  * diskExpiryThreadIntervalSeconds="120"
  * />
- *
  * @author <a href="mailto:gluck@thoughtworks.com">Greg Luck</a>
  * @version $Id$
  */
-public class CacheConfiguration {
+public final class CacheConfiguration {
 
     /**
      * the name of the cache.
@@ -107,11 +106,6 @@ public class CacheConfiguration {
      * The event listener factories added by BeanUtils.
      */
     protected final List cacheEventListenerConfigurations = new ArrayList();
-
-    /**
-     * The BootstrapCacheLoaderFactoryConfiguration.
-     */
-    protected BootstrapCacheLoaderFactoryConfiguration bootstrapCacheLoaderFactoryConfiguration;
 
     /**
      * Sets the name of the cache. This must be unique.
@@ -191,98 +185,6 @@ public class CacheConfiguration {
      */
     public final void addCacheEventListenerFactory(CacheEventListenerFactoryConfiguration factory) {
         cacheEventListenerConfigurations.add(factory);
-    }
-
-    /**
-     * Configuration for the BootstrapCacheLoaderFactoryConfiguration.
-     */
-    public final class BootstrapCacheLoaderFactoryConfiguration extends FactoryConfiguration {
-    }
-
-    /**
-     * Allows {@link BeanHandler} to add the CacheManagerEventListener to the configuration.
-     */
-    public final void addBootstrapCacheLoaderFactory(BootstrapCacheLoaderFactoryConfiguration
-            bootstrapCacheLoaderFactoryConfiguration) {
-        this.bootstrapCacheLoaderFactoryConfiguration = bootstrapCacheLoaderFactoryConfiguration;
-
-    }
-
-    /**
-     * Accessor
-     */
-    public String getName() {
-        return name;
-    }
-
-    /**
-     * Accessor
-     */
-    public int getMaxElementsInMemory() {
-        return maxElementsInMemory;
-    }
-
-    /**
-     * Accessor
-     */
-    public MemoryStoreEvictionPolicy getMemoryStoreEvictionPolicy() {
-        return memoryStoreEvictionPolicy;
-    }
-
-    /**
-     * Accessor
-     */
-    public boolean isEternal() {
-        return eternal;
-    }
-
-    /**
-     * Accessor
-     */
-    public int getTimeToIdleSeconds() {
-        return timeToIdleSeconds;
-    }
-
-    /**
-     * Accessor
-     */
-    public int getTimeToLiveSeconds() {
-        return timeToLiveSeconds;
-    }
-
-    /**
-     * Accessor
-     */
-    public boolean isOverflowToDisk() {
-        return overflowToDisk;
-    }
-
-    /**
-     * Accessor
-     */
-    public boolean isDiskPersistent() {
-        return diskPersistent;
-    }
-
-    /**
-     * Accessor
-     */
-    public long getDiskExpiryThreadIntervalSeconds() {
-        return diskExpiryThreadIntervalSeconds;
-    }
-
-    /**
-     * Accessor
-     */
-    public List getCacheEventListenerConfigurations() {
-        return cacheEventListenerConfigurations;
-    }
-
-    /**
-     * Accessor
-     */
-    public BootstrapCacheLoaderFactoryConfiguration getBootstrapCacheLoaderFactoryConfiguration() {
-        return bootstrapCacheLoaderFactoryConfiguration;
     }
 
 }

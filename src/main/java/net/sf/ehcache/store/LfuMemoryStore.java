@@ -16,7 +16,7 @@
 
 package net.sf.ehcache.store;
 
-import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.Element;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -61,7 +61,7 @@ public final class LfuMemoryStore extends MemoryStore {
     /**
      * Constructor for the LfuMemoryStore object.
      */
-    protected LfuMemoryStore(Ehcache cache, DiskStore diskStore) {
+    protected LfuMemoryStore(Cache cache, DiskStore diskStore) {
         super(cache, diskStore);
         map = new HashMap();
     }
@@ -86,7 +86,7 @@ public final class LfuMemoryStore extends MemoryStore {
         Element element = findRelativelyUnused(elementJustAdded);
 
         // If the element is expired remove
-        if (element.isExpired()) {
+        if (cache.isExpired(element)) {
             remove(element.getObjectKey());
             notifyExpiry(element);
             return;

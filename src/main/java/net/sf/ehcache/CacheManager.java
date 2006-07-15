@@ -17,30 +17,28 @@
 
 package net.sf.ehcache;
 
-import net.sf.ehcache.config.Configuration;
-import net.sf.ehcache.config.ConfigurationFactory;
 import net.sf.ehcache.config.ConfigurationHelper;
+import net.sf.ehcache.config.ConfigurationFactory;
+import net.sf.ehcache.config.Configuration;
 import net.sf.ehcache.distribution.CacheManagerPeerListener;
 import net.sf.ehcache.distribution.CacheManagerPeerProvider;
 import net.sf.ehcache.event.CacheManagerEventListener;
-import net.sf.ehcache.store.DiskStore;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.File;
 import java.io.InputStream;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Collection;
 
 /**
- * A container for {@link Ehcache}s that maintain all aspects of their lifecycle.
+ * A container for {@link Cache}s that maintain all aspects of their lifecycle.
  * <p/>
  * CacheManager is meant to have one singleton per virtual machine. Its creational methods are implemented so as to
  * make it a singleton. The design reasons for one CacheManager per VM are:
@@ -50,19 +48,19 @@ import java.util.Set;
  * <li>Event listeners are given cache names as arguments. They are assured the cache is referenceable through a single
  * CacheManager.
  * </ol>
- * <p/>
+ *
  * @author Greg Luck
  * @version $Id$
  */
-public class CacheManager {
-
-    /**
-     * Keeps track of all known CacheManagers. Used to check on conflicts.
-     * CacheManagers should remove themselves from this list during shut down.
-     */
-    static final List ALL_CACHE_MANAGERS = Collections.synchronizedList(new ArrayList());
+public final class CacheManager {
 
     private static final Log LOG = LogFactory.getLog(CacheManager.class.getName());
+
+    /**
+     * Keeps track of the disk store paths of all CacheManagers.
+     * Can be checked before letting a new CacheManager start up.
+     */
+    private static final Set ALL_CACHE_MANAGER_DISK_STORE_PATHS = Collections.synchronizedSet(new HashSet());
 
     /**
      * The Singleton Instance.
@@ -72,12 +70,12 @@ public class CacheManager {
     /**
      * Caches managed by this manager.
      */
-    protected final Map caches = new HashMap();
+    private final Map caches = new HashMap();
 
     /**
      * Default cache cache.
      */
-    private Ehcache defaultCache;
+    private Cache defaultCache;
 
     /**
      * The path for the directory in which disk caches are created.
@@ -174,7 +172,6 @@ public class CacheManager {
 
     /**
      * Constructor.
-     *
      * @throws CacheException
      */
     public CacheManager() throws CacheException {
@@ -194,7 +191,6 @@ public class CacheManager {
 
         ConfigurationHelper configurationHelper = new ConfigurationHelper(this, localConfiguration);
         configure(configurationHelper);
-        addConfiguredCaches(configurationHelper);
 
         status = Status.STATUS_ALIVE;
         if (cacheManagerPeerListener != null) {
@@ -203,6 +199,7 @@ public class CacheManager {
         if (cacheManagerPeerProvider != null) {
             cacheManagerPeerProvider.init();
         }
+
     }
 
     /**
@@ -211,8 +208,8 @@ public class CacheManager {
      * <p/>
      * Should only be called once.
      *
-     * @param configurationFileName     the file name to parse, or null
-     * @param configurationURL          the URL to pass, or null
+     * @param configurationFileName the file name to parse, or null
+     * @param configurationURL the URL to pass, or null
      * @param configurationInputStream, the InputStream to parse, or null
      * @return the loaded configuration
      * @throws CacheException if the configuration cannot be parsed
@@ -223,9 +220,7 @@ public class CacheManager {
         Configuration configuration;
         String configurationSource;
         if (configurationFileName != null) {
-            if (LOG.isDebugEnabled()) {
-                LOG.debug("Configuring CacheManager from " + configurationFileName);
-            }
+            LOG.debug("Configuring CacheManager from " + configurationFileName);
             configuration = ConfigurationFactory.parseConfiguration(new File(configurationFileName));
             configurationSource = "file located at " + configurationFileName;
         } else if (configurationURL != null) {
@@ -249,71 +244,21 @@ public class CacheManager {
     private void configure(ConfigurationHelper configurationHelper) {
 
         diskStorePath = configurationHelper.getDiskStorePath();
-        detectAndFixDiskStorePathConflict(configurationHelper);
+        if (!ALL_CACHE_MANAGER_DISK_STORE_PATHS.add(diskStorePath)) {
+            throw new CacheException("Cannot parseConfiguration CacheManager. Attempt to create a new instance" +
+                    " of CacheManager using the diskStorePath \"" + diskStorePath + "\" which is already used" +
+                    " by an existing CacheManager. The source of the configuration was "
+                    + configurationHelper.getConfigurationBean().getConfigurationSource() + ".");
+        }
 
         cacheManagerEventListener = configurationHelper.createCacheManagerEventListener();
-
         cacheManagerPeerListener = configurationHelper.createCachePeerListener();
-        detectAndFixCacheManagerPeerListenerConflict(configurationHelper);
-
-        ALL_CACHE_MANAGERS.add(this);
-
         cacheManagerPeerProvider = configurationHelper.createCachePeerProvider();
         defaultCache = configurationHelper.createDefaultCache();
 
-    }
-
-    private void detectAndFixDiskStorePathConflict(ConfigurationHelper configurationHelper) {
-        for (int i = 0; i < ALL_CACHE_MANAGERS.size(); i++) {
-            CacheManager cacheManager = (CacheManager) ALL_CACHE_MANAGERS.get(i);
-            if (diskStorePath.equals(cacheManager.diskStorePath)) {
-                String newDiskStorePath = diskStorePath + File.separator + DiskStore.generateUniqueDirectory();
-                LOG.warn("Creating a new instance of CacheManager using the diskStorePath \""
-                        + diskStorePath + "\" which is already used" +
-                        " by an existing CacheManager.\nThe source of the configuration was "
-                        + configurationHelper.getConfigurationBean().getConfigurationSource() + ".\n" +
-                        "The diskStore path for this CacheManager will be set to " + newDiskStorePath + ".\nTo avoid this" +
-                        " warning consider using the CacheManager factory methods to create a singleton CacheManager " +
-                        "or specifying a separate ehcache configuration (ehcache.xml) for each CacheManager instance.");
-                diskStorePath = newDiskStorePath;
-                break;
-            }
-
-        }
-    }
-
-    private void detectAndFixCacheManagerPeerListenerConflict(ConfigurationHelper configurationHelper) {
-        if (cacheManagerPeerListener == null) {
-            return;
-        }
-        String uniqueResourceIdentifier = cacheManagerPeerListener.getUniqueResourceIdentifier();
-        for (int i = 0; i < ALL_CACHE_MANAGERS.size(); i++) {
-            CacheManager cacheManager = (CacheManager) ALL_CACHE_MANAGERS.get(i);
-            CacheManagerPeerListener otherCacheManagerPeerListener = cacheManager.cacheManagerPeerListener;
-            if (otherCacheManagerPeerListener == null) {
-                continue;
-            }
-            String otherUniqueResourceIdentifier = otherCacheManagerPeerListener.getUniqueResourceIdentifier();
-            if (uniqueResourceIdentifier.equals(otherUniqueResourceIdentifier)) {
-                LOG.warn("Creating a new instance of CacheManager with a CacheManagerPeerListener which " +
-                        "has a conflict on a resource that must be unique.\n" +
-                        "The resource is " + uniqueResourceIdentifier + ".\n" +
-                        "Attempting automatic resolution. The source of the configuration was "
-                        + configurationHelper.getConfigurationBean().getConfigurationSource() + ".\n"
-                        + "To avoid this warning consider using the CacheManager factory methods to create a " +
-                        "singleton CacheManager " +
-                        "or specifying a separate ehcache configuration (ehcache.xml) for each CacheManager instance.");
-                cacheManagerPeerListener.attemptResolutionOfUniqueResourceConflict();
-                break;
-            }
-
-        }
-    }
-
-    private void addConfiguredCaches(ConfigurationHelper configurationHelper) {
         Set unitialisedCaches = configurationHelper.createCaches();
         for (Iterator iterator = unitialisedCaches.iterator(); iterator.hasNext();) {
-            Ehcache unitialisedCache = (Ehcache) iterator.next();
+            Cache unitialisedCache = (Cache) iterator.next();
             addCacheNoCheck(unitialisedCache);
         }
     }
@@ -321,16 +266,15 @@ public class CacheManager {
     private void reinitialisationCheck() throws IllegalStateException {
         if (defaultCache != null || diskStorePath != null || caches.size() != 0
                 || status.equals(Status.STATUS_SHUTDOWN)) {
-            throw new IllegalStateException("Attempt to reinitialise the CacheManager");
+            throw new IllegalStateException("Attempt to reinitialise the Cache Manager");
         }
     }
 
     /**
      * A factory method to create a singleton CacheManager with default config, or return it if it exists.
      * <p/>
-     * The configuration will be read, {@link Ehcache}s created and required stores initialized.
+     * The configuration will be read, {@link Cache}s created and required stores initialized.
      * When the {@link CacheManager} is no longer required, call shutdown to free resources.
-     *
      * @return the singleton CacheManager
      * @throws CacheException if the CacheManager cannot be created
      */
@@ -356,7 +300,6 @@ public class CacheManager {
      * This has the same effect as {@link CacheManager#create}
      * <p/>
      * Same as {@link #create()}
-     *
      * @return the singleton CacheManager
      * @throws CacheException if the CacheManager cannot be created
      */
@@ -369,7 +312,7 @@ public class CacheManager {
      *
      * @param configurationFileName an xml file compliant with the ehcache.xsd schema
      *                              <p/>
-     *                              The configuration will be read, {@link Ehcache}s created and required stores initialized.
+     *                              The configuration will be read, {@link Cache}s created and required stores initialized.
      *                              When the {@link CacheManager} is no longer required, call shutdown to free resources.
      */
     public static CacheManager create(String configurationFileName) throws CacheException {
@@ -401,7 +344,7 @@ public class CacheManager {
      *
      * @param configurationFileURL an URL to an xml file compliant with the ehcache.xsd schema
      *                             <p/>
-     *                             The configuration will be read, {@link Ehcache}s created and required stores initialized.
+     *                             The configuration will be read, {@link Cache}s created and required stores initialized.
      *                             When the {@link CacheManager} is no longer required, call shutdown to free resources.
      */
     public static CacheManager create(URL configurationFileURL) throws CacheException {
@@ -426,7 +369,7 @@ public class CacheManager {
      *
      * @param inputStream InputStream of xml compliant with the ehcache.xsd schema
      *                    <p/>
-     *                    The configuration will be read, {@link Ehcache}s created and required stores initialized.
+     *                    The configuration will be read, {@link Cache}s created and required stores initialized.
      *                    When the {@link CacheManager} is no longer required, call shutdown to free resources.
      */
     public static CacheManager create(InputStream inputStream) throws CacheException {
@@ -442,31 +385,17 @@ public class CacheManager {
     }
 
     /**
-     * Returns a concrete implementation of Cache.
-     * Consider using the {@link #getEhcache(String)} method which returns an interface
+     * Gets a Cache
      *
      * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
-     * @throws ClassCastException is the Ehcache found is not a Cache
-     * @see #getEhcache(String)
-     *
      */
-    public synchronized Cache getCache(String name) throws IllegalStateException, ClassCastException {
+    public synchronized Cache getCache(String name) throws IllegalStateException {
         checkStatus();
         return (Cache) caches.get(name);
     }
 
     /**
-     * Gets an Ehcache
-     *
-     * @throws IllegalStateException if the cache is not {@link Status#STATUS_ALIVE}
-     */
-    public synchronized Ehcache getEhcache(String name) throws IllegalStateException {
-        checkStatus();
-        return (Ehcache) caches.get(name);
-    }
-
-    /**
-     * Adds a {@link Ehcache} based on the defaultCache with the given name.
+     * Adds a {@link Cache} based on the defaultCache with the given name.
      * <p/>
      * Memory and Disk stores will be configured for it and it will be added
      * to the map of caches.
@@ -491,9 +420,9 @@ public class CacheManager {
         if (caches.get(cacheName) != null) {
             throw new ObjectExistsException("Cache " + cacheName + " already exists");
         }
-        Ehcache cache = null;
+        Cache cache = null;
         try {
-            cache = (Ehcache) defaultCache.clone();
+            cache = (Cache) defaultCache.clone();
         } catch (CloneNotSupportedException e) {
             LOG.error("Failure adding cache. Initial cause was " + e.getMessage(), e);
         }
@@ -516,42 +445,20 @@ public class CacheManager {
      */
     public synchronized void addCache(Cache cache) throws IllegalStateException,
             ObjectExistsException, CacheException {
-        addCache((Ehcache)cache);
-    }
-
-    /**
-     * Adds an {@link Ehcache} to the CacheManager.
-     * <p/>
-     * Memory and Disk stores will be configured for it and it will be added to the map of caches.
-     * Also notifies the CacheManagerEventListener after the cache was initialised and added.
-     *
-     * @param cache
-     * @throws IllegalStateException if the cache is not {@link Status#STATUS_UNINITIALISED} before this method is called.
-     * @throws ObjectExistsException if the cache already exists in the CacheManager
-     * @throws CacheException        if there was an error adding the cache to the CacheManager
-     */
-    public synchronized void addCache(Ehcache cache) throws IllegalStateException,
-            ObjectExistsException, CacheException {
         checkStatus();
         addCacheNoCheck(cache);
     }
 
-    private synchronized void addCacheNoCheck(Ehcache cache) throws IllegalStateException,
+    private synchronized void addCacheNoCheck(Cache cache) throws IllegalStateException,
             ObjectExistsException, CacheException {
         if (caches.get(cache.getName()) != null) {
             throw new ObjectExistsException("Cache " + cache.getName() + " already exists");
         }
-        cache.setCacheManager(this);
-        //Is an attribute of the CacheManager. Setting the dependency so as not to break constructor compatibility.
-        cache.setDiskStorePath(diskStorePath);
         cache.initialise();
-        cache.bootstrap();
+        cache.setCacheManager(this);
         caches.put(cache.getName(), cache);
         if (cacheManagerEventListener != null) {
             cacheManagerEventListener.notifyCacheAdded(cache.getName());
-        }
-        if (cacheManagerPeerListener != null && status.equals(Status.STATUS_ALIVE)) {
-            cacheManagerPeerListener.notifyCacheAdded(cache.getName());
         }
     }
 
@@ -593,14 +500,11 @@ public class CacheManager {
             return;
         }
 
-        Ehcache cache = (Ehcache) caches.remove(cacheName);
+        Cache cache = (Cache) caches.remove(cacheName);
         if (cache != null && cache.getStatus().equals(Status.STATUS_ALIVE)) {
             cache.dispose();
             if (cacheManagerEventListener != null) {
                 cacheManagerEventListener.notifyCacheRemoved(cache.getName());
-            }
-            if (cacheManagerPeerListener != null && status.equals(Status.STATUS_ALIVE)) {
-                cacheManagerPeerListener.notifyCacheRemoved(cache.getName());
             }
         }
     }
@@ -625,11 +529,11 @@ public class CacheManager {
             cacheManagerPeerListener.dispose();
         }
         synchronized (CacheManager.class) {
-            ALL_CACHE_MANAGERS.remove(this);
+            ALL_CACHE_MANAGER_DISK_STORE_PATHS.remove(diskStorePath);
 
             Collection cacheSet = caches.values();
             for (Iterator iterator = cacheSet.iterator(); iterator.hasNext();) {
-                Ehcache cache = (Ehcache) iterator.next();
+                Cache cache = (Cache) iterator.next();
                 if (cache != null) {
                     cache.dispose();
                 }
@@ -664,31 +568,12 @@ public class CacheManager {
 
 
     /**
-     * Gets the status attribute of the Ehcache
+     * Gets the status attribute of the Cache
      *
      * @return The status value from the Status enum class
      */
     public Status getStatus() {
         return status;
-    }
-
-    /**
-     * Clears  the contents of all caches in the CacheManager, but without
-     * removing any caches.
-     * <p/>
-     * This method is not synchronized. It only guarantees to clear those elements in a cache
-     * at the time that the {@link Ehcache#removeAll()} mehod  on each cache is called.
-     */
-    public void clearAll() throws CacheException {
-        String[] cacheNames = getCacheNames();
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("Clearing all caches");
-        }
-        for (int i = 0; i < cacheNames.length; i++) {
-            String cacheName = cacheNames[i];
-            Ehcache cache = getCache(cacheName);
-            cache.removeAll();
-        }
     }
 
     /**
@@ -729,51 +614,8 @@ public class CacheManager {
         this.cacheManagerEventListener = cacheManagerEventListener;
     }
 
-    /**
-     * Gets the CacheManagerPeerProvider, which can be useful for programmatically adding peers. Adding peers
-     * will only be useful if the peer providers are manually provided rather than automatically discovered, otherwise
-     * they will go stale.
-     *
-     * @return the CacheManagerPeerProvider, or null if there is not one.
-     */
-    public CacheManagerPeerProvider getCacheManagerPeerProvider() {
-        return cacheManagerPeerProvider;
-    }
 
-    /**
-     * Replaces in the map of Caches managed by this CacheManager an Ehcache with a decorated version of the same
-     * Ehcache. CacheManager can operate fully with a decorated Ehcache.
-     * <p/>
-     * Decorators can be used to obtain different behaviour from an Ehcache in a very flexible way. Some examples in
-     * ehcache are:
-     * <ol>
-     * <li>{@link net.sf.ehcache.constructs.blocking.BlockingCache} - A cache that blocks other threads from getting a null element until the first thread
-     * has placed a value in it.
-     * <li>{@link net.sf.ehcache.constructs.blocking.SelfPopulatingCache} - A BlockingCache that has the additional
-     * property of knowing how to load its own entries.
-     * </ol>
-     * Many other kinds are possible.
-     * <p/>
-     * It is generally required that a decorated cache, once constructed, is made available to other execution threads.
-     * The simplest way of doing this is to substitute the original cache for the decorated one here.
-     * <p/>
-     * Note that any overwritten Ehcache methods will take on new behaviours without casting. Casting is only required
-     * for new methods that the decorator introduces.
-     * For more information see the well known Gang of Four Decorator pattern.
-     * @param cache
-     * @param decoratedCache An implementation of Ehcache that wraps the original cache.
-     * @throws CacheException if the two caches do not equal each other.
-     */
-    public synchronized void replaceCacheWithDecoratedCache(Ehcache cache, Ehcache decoratedCache) throws CacheException {
 
-        if (!cache.equals(decoratedCache)) {
-            throw new CacheException("Cannot replace " + decoratedCache.getName()
-                    + " It does not equal the incumbent cache.");
-        } else {
-            caches.remove(cache.getName());
-            caches.put(cache.getName(), decoratedCache);
-        }
 
-    }
 }
 

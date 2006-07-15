@@ -95,12 +95,8 @@ public final class ConfigurableRMIClientSocketFactory implements Serializable, R
      * @return equal if the classes are the same and the socket options are the name.
      */
     public boolean equals(Object object) {
-        if (object == null) {
-            return false;
-        } else {
-            return (getClass() == object.getClass() &&
+        return (getClass() == object.getClass() &&
                 socketTimeoutMillis == ((ConfigurableRMIClientSocketFactory) object).socketTimeoutMillis);
-        }
     }
 
 }

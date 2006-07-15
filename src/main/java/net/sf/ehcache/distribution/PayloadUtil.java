@@ -19,13 +19,13 @@ package net.sf.ehcache.distribution;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import java.io.ByteArrayInputStream;
+import java.util.List;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.GZIPInputStream;
+import java.rmi.RemoteException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.rmi.RemoteException;
-import java.util.List;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
+import java.io.ByteArrayInputStream;
 
 /**
  * This class provides utility methods for assembling and disassembling a heartbeat payload.

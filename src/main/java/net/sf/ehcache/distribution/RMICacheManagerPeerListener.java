@@ -16,17 +16,14 @@
 
 package net.sf.ehcache.distribution;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
-import net.sf.ehcache.Status;
 import net.sf.ehcache.event.CacheEventListener;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import java.io.IOException;
 import java.net.InetAddress;
-import java.net.ServerSocket;
 import java.net.UnknownHostException;
 import java.rmi.Naming;
 import java.rmi.Remote;
@@ -36,10 +33,8 @@ import java.rmi.registry.Registry;
 import java.rmi.server.ExportException;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -60,46 +55,23 @@ import java.util.Set;
  * all required classes to enable distribution, so no remote classloading is required or desirable. Accordingly,
  * no security manager is set and there are no special JVM configuration requirements.
  * <p/>
- * This class opens a ServerSocket. The dispose method should be called for orderly closure of that socket. This class
- * has a shutdown hook which calls dispose() as a convenience feature for developers.
+ *
  * @author Greg Luck
  * @version $Id$
  */
-public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
+public final class RMICacheManagerPeerListener implements CacheManagerPeerListener {
 
     private static final Log LOG = LogFactory.getLog(RMICacheManagerPeerListener.class.getName());
     private static final int MINIMUM_SENSIBLE_TIMEOUT = 200;
-    private static final int NAMING_UNBIND_RETRY_INTERVAL = 400;
-    private static final int NAMING_UNBIND_MAX_RETRIES = 10;
-
-    /**
-     * The cache peers. The value is an RMICachePeer.
-     */
-    protected final Map cachePeers = new HashMap();
-
-    /**
-     * status.
-     */
-    protected Status status;
-
-    /**
-     * The RMI listener port
-     */
-    protected Integer port;
 
     private Registry registry;
-    private final String hostName;
 
+    private final String hostName;
+    private Integer port;
     private CacheManager cacheManager;
     private Integer socketTimeoutMillis;
 
-    /**
-     * The shutdown hook thread for these listeners. To cover the situation where dispose() is not called explicitly.
-     * <p/>
-     * This thread must be unregistered as a shutdown hook, when the listener is disposed.
-     * Otherwise the listener is not GC-able.
-     */
-    private Thread shutdownHook;
+    private final List cachePeers = new ArrayList();
 
     /**
      * Constructor with full arguments.
@@ -112,20 +84,17 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      */
     public RMICacheManagerPeerListener(String hostName, Integer port, CacheManager cacheManager,
                                        Integer socketTimeoutMillis) throws UnknownHostException {
-
-        status = Status.STATUS_UNINITIALISED;
-
         if (hostName != null && hostName.length() != 0) {
             this.hostName = hostName;
             if (hostName.equals("localhost")) {
                 LOG.warn("Explicitly setting the listener hostname to 'localhost' is not recommended. "
-                        + "It will only work if all CacheManager peers are on the same machine.");
+                + "It will only work if all CacheManager peers are on the same machine.");
             }
         } else {
             this.hostName = calculateHostAddress();
         }
-        if (port == null || port.intValue() == 0) {
-            assignFreePort(false);
+        if (port == null) {
+            throw new IllegalArgumentException("port must be specified in the range 1025 - 65536");
         } else {
             this.port = port;
         }
@@ -137,118 +106,25 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
 
     }
 
-    /**
-     * Assigns a free port to be the listener port.
-     *
-     * @throws IllegalStateException if the statis of the listener is not {@link net.sf.ehcache.Status#STATUS_UNINITIALISED}
-     */
-    protected void assignFreePort(boolean forced) throws IllegalStateException {
-        if (status != Status.STATUS_UNINITIALISED) {
-            throw new IllegalStateException("Cannot change the port of an already started listener.");
-        }
-        this.port = new Integer(this.getFreePort());
-        if (forced) {
-            LOG.warn("Resolving RMI port conflict by automatically using a free TCP/IP port to listen on: " + this.port);
-        } else {
-            LOG.debug("Automatically finding a free TCP/IP port to listen on: " + this.port);
-        }
-    }
 
-
-    /**
-     * Some caches might be persistent, so we want to add a shutdown hook if that is the
-     * case, so that the data and index can be written to disk.
-     */
-    private void addShutdownHook() {
-        Thread localShutdownHook = new Thread() {
-            public void run() {
-                synchronized (this) {
-                    if (status.equals(Status.STATUS_ALIVE)) {
-                        // clear shutdown hook reference to prevent
-                        // removeShutdownHook to remove it during shutdown
-                        RMICacheManagerPeerListener.this.shutdownHook = null;
-
-                        LOG.debug("VM shutting down with the RMICacheManagerPeerListener for " + hostName
-                                + " still active. Calling dispose...");
-                        dispose();
-                    }
-                }
-            }
-        };
-
-        Runtime.getRuntime().addShutdownHook(localShutdownHook);
-        shutdownHook = localShutdownHook;
-    }
-
-
-    /**
-     * Remove the shutdown hook to prevent leaving orphaned caches around. This
-     * is called by {@link #dispose()} AFTER the status has been set to shutdown.
-     */
-    protected void removeShutdownHook() {
-        if (shutdownHook != null) {
-            // remove shutdown hook
-            Runtime.getRuntime().removeShutdownHook(shutdownHook);
-
-            // run the shutdown thread to remove it from its thread group
-            shutdownHook.start();
-
-            shutdownHook = null;
-        }
-    }
-
-    /**
-     * Calculates the host address as the default NICs IP address
-     *
-     * @throws UnknownHostException
-     */
-    protected String calculateHostAddress() throws UnknownHostException {
+    private static String calculateHostAddress() throws UnknownHostException {
         return InetAddress.getLocalHost().getHostAddress();
-    }
-
-
-    /**
-     * Gets a free server socket port.
-     *
-     * @return a number in the range 1025 - 65536 that was free at the time this method was executed
-     * @throws IllegalArgumentException
-     */
-    protected int getFreePort() throws IllegalArgumentException {
-        ServerSocket serverSocket = null;
-        try {
-            serverSocket = new ServerSocket(0);
-            return serverSocket.getLocalPort();
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Could not acquire a free port number.");
-        } finally {
-            if (serverSocket != null && !serverSocket.isClosed()) {
-                try {
-                    serverSocket.close();
-                } catch (Exception e) {
-                    LOG.debug("Error closing ServerSocket: " + e.getMessage());
-                }
-            }
-        }
     }
 
 
     /**
      * {@inheritDoc}
      */
-    public void init() throws CacheException {
+    public final void init() throws CacheException {
         RMICachePeer rmiCachePeer = null;
         try {
             startRegistry();
-            int counter = 0;
             populateListOfRemoteCachePeers();
-            for (Iterator iterator = cachePeers.values().iterator(); iterator.hasNext();) {
-                rmiCachePeer = (RMICachePeer) iterator.next();
-                bind(rmiCachePeer);
-                counter++;
+            for (int i = 0; i < cachePeers.size(); i++) {
+                rmiCachePeer = (RMICachePeer) cachePeers.get(i);
+                Naming.rebind(rmiCachePeer.getUrl(), rmiCachePeer);
             }
-            LOG.debug(counter + " RMICachePeers bound in registry for RMI listener");
-            status = Status.STATUS_ALIVE;
-            addShutdownHook();
+            LOG.debug("Server bound in registry");
         } catch (Exception e) {
             String url = null;
             if (rmiCachePeer != null) {
@@ -258,26 +134,15 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
             throw new CacheException("Problem starting listener for RMICachePeer "
                     + url + ". Initial cause was " + e.getMessage(), e);
         }
-
-    }
-
-    /**
-     * Bind a cache peer
-     *
-     * @param rmiCachePeer
-     */
-    protected void bind(RMICachePeer rmiCachePeer) throws Exception {
-        Naming.rebind(rmiCachePeer.getUrl(), rmiCachePeer);
     }
 
     /**
      * Returns a list of bound objects.
      * <p/>
      * This should match the list of cachePeers i.e. they should always be bound
-     *
      * @return a list of String representations of <code>RMICachePeer</code> objects
      */
-    protected String[] listBoundRMICachePeers() throws CacheException {
+    final String[] listBoundRMICachePeers() throws CacheException {
         try {
             return registry.list();
         } catch (RemoteException e) {
@@ -287,10 +152,9 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
 
     /**
      * Returns a reference to the remote object.
-     *
      * @param name the name of the cache e.g. <code>sampleCache1</code>
      */
-    protected Remote lookupPeer(String name) throws CacheException {
+    final Remote lookupPeer(String name) throws CacheException {
         try {
             return registry.lookup(name);
         } catch (Exception e) {
@@ -302,16 +166,14 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
     /**
      * Should be called on init because this is one of the last things that should happen on CacheManager startup.
      */
-    protected void populateListOfRemoteCachePeers() throws RemoteException {
+    private void populateListOfRemoteCachePeers() throws RemoteException {
         String[] names = cacheManager.getCacheNames();
         for (int i = 0; i < names.length; i++) {
             String name = names[i];
-            Ehcache cache = cacheManager.getEhcache(name);
-            if (cachePeers.get(name) == null) {
-                if (isDistributed(cache)) {
-                    RMICachePeer peer = new RMICachePeer(cache, hostName, port, socketTimeoutMillis);
-                    cachePeers.put(name, peer);
-                }
+            Cache cache = cacheManager.getCache(name);
+            if (isDistributed(cache)) {
+                RMICachePeer peer = new RMICachePeer(cache, hostName, port, socketTimeoutMillis);
+                cachePeers.add(peer);
             }
         }
 
@@ -319,11 +181,10 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
 
     /**
      * Determine if the given cache is distributed.
-     *
      * @param cache the cache to check
      * @return true if a <code>CacheReplicator</code> is found in the listeners
      */
-    protected boolean isDistributed(Ehcache cache) {
+    private static boolean isDistributed(Cache cache) {
         Set listeners = cache.getCacheEventNotificationService().getCacheEventListeners();
         for (Iterator iterator = listeners.iterator(); iterator.hasNext();) {
             CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
@@ -347,7 +208,7 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
      *
      * @throws RemoteException
      */
-    protected void startRegistry() throws RemoteException {
+    private void startRegistry() throws RemoteException {
         try {
             registry = LocateRegistry.getRegistry(port.intValue());
             try {
@@ -364,215 +225,36 @@ public class RMICacheManagerPeerListener implements CacheManagerPeerListener {
     /**
      * Stop the listener. It
      * <ul>
-     * <li>unbinds the objects from the registry
      * <li>unexports Remote objects
+     * <li>unbinds the objects from the registry
      * </ul>
      */
-    public void dispose() throws CacheException {
+    public final void dispose() throws CacheException {
         try {
-            int counter = 0;
-            for (Iterator iterator = cachePeers.values().iterator(); iterator.hasNext();) {
-                RMICachePeer rmiCachePeer = (RMICachePeer) iterator.next();
-                disposeRMICachePeer(rmiCachePeer);
-                counter++;
+            for (int i = 0; i < cachePeers.size(); i++) {
+                RMICachePeer rmiCachePeer = (RMICachePeer) cachePeers.get(i);
+                UnicastRemoteObject.unexportObject(rmiCachePeer, false);
+                Naming.unbind(rmiCachePeer.getUrl());
             }
-            LOG.debug(counter + " RMICachePeers unbound from registry in RMI listener");
-            status = Status.STATUS_SHUTDOWN;
+            LOG.debug("Server unbound in registry");
         } catch (Exception e) {
             throw new CacheException("Problem unbinding remote cache peers. Initial cause was " + e.getMessage(), e);
-        } finally {
-            removeShutdownHook();
         }
     }
 
     /**
-     * A template method to dispose an individual RMICachePeer. This consists of:
-     * <ol>
-     * <li>Unbinding the peer from the naming service
-     * <li>Unexporting the peer
-     * </ol>
-     * Override to specialise behaviour
-     * @param rmiCachePeer  the cache peer to dispose of
-     * @throws Exception thrown if something goes wrong
-     */
-    protected void disposeRMICachePeer(RMICachePeer rmiCachePeer) throws Exception {
-        unbind(rmiCachePeer);
-    }
-
-    /**
-     * Unbinds an RMICachePeer and unexports it.
-     * <p/>
-     * We unbind from the registry first before unexporting.
-     * Unbinding first removes the very small possibility of a client
-     * getting the object from the registry while we are trying to unexport it.
-     * <p/>
-     * This method may take up to 4 seconds to complete, if we are having trouble
-     * unexporting the peer.
+     * All of the caches which are listenting for remote changes.
      *
-     * @param rmiCachePeer the bound and exported cache peer
-     * @throws Exception
+     * @return a list of <code>RMICachePeer</code> objects
      */
-    protected void unbind(RMICachePeer rmiCachePeer) throws Exception {
-        Naming.unbind(rmiCachePeer.getUrl());
-        // Try to gracefully unexport before forcing it.
-        boolean unexported = UnicastRemoteObject.unexportObject(rmiCachePeer, false);
-        for (int count = 1; (count < NAMING_UNBIND_MAX_RETRIES) && !unexported; count++) {
-            try {
-                Thread.sleep(NAMING_UNBIND_RETRY_INTERVAL);
-            } catch (InterruptedException ie) {
-                // break out of the unexportObject loop
-                break;
-            }
-            unexported = UnicastRemoteObject.unexportObject(rmiCachePeer, false);
-        }
-
-        // If we still haven't been able to unexport, force the unexport
-        // as a last resort.
-        if (!unexported) {
-            if (!UnicastRemoteObject.unexportObject(rmiCachePeer, true)) {
-                LOG.warn("Unable to unexport rmiCachePeer: " + rmiCachePeer.getUrl() + ".  Skipping.");
-            }
-        }
+    public final List getBoundCachePeers() {
+        return cachePeers;
     }
 
     /**
-     * All of the caches which are listening for remote changes.
-     *
-     * @return a list of <code>RMICachePeer</code> objects. The list if not live
+     * Gets a list of cache peers
      */
-    public List getBoundCachePeers() {
-        List cachePeerList = new ArrayList();
-        for (Iterator iterator = cachePeers.values().iterator(); iterator.hasNext();) {
-            RMICachePeer rmiCachePeer = (RMICachePeer) iterator.next();
-            cachePeerList.add(rmiCachePeer);
-        }
-        return cachePeerList;
-    }
-
-    /**
-     * Returns the listener status.
-     */
-    public Status getStatus() {
-        return status;
-    }
-
-    /**
-     * A listener will normally have a resource that only one instance can use at the same time,
-     * such as a port. This identifier is used to tell if it is unique and will not conflict with an
-     * existing instance using the resource.
-     *
-     * @return a String identifier for the resource
-     */
-    public String getUniqueResourceIdentifier() {
-        return "RMI listener port: " + port;
-    }
-
-    /**
-     * If a conflict is detected in unique resource use, this method signals the listener to attempt
-     * automatic resolution of the resource conflict.
-     *
-     * @throws IllegalStateException if the statis of the listener is not {@link net.sf.ehcache.Status#STATUS_UNINITIALISED}
-     */
-    public void attemptResolutionOfUniqueResourceConflict() throws IllegalStateException, CacheException {
-        assignFreePort(true);
-    }
-
-    /**
-     * Called immediately after a cache has been added and activated.
-     * <p/>
-     * Note that the CacheManager calls this method from a synchronized method. Any attempt to call a synchronized
-     * method on CacheManager from this method will cause a deadlock.
-     * <p/>
-     * Note that activation will also cause a CacheEventListener status change notification from
-     * {@link net.sf.ehcache.Status#STATUS_UNINITIALISED} to {@link net.sf.ehcache.Status#STATUS_ALIVE}. Care should be
-     * taken on processing that notification because:
-     * <ul>
-     * <li>the cache will not yet be accessible from the CacheManager.
-     * <li>the addCaches methods whih cause this notification are synchronized on the CacheManager. An attempt to call
-     * {@link net.sf.ehcache.CacheManager#getCache(String)} will cause a deadlock.
-     * </ul>
-     * The calling method will block until this method returns.
-     * <p/>
-     * Repopulates the list of cache peers and rebinds the list.
-     * This method should be called if a cache is dynamically added
-     *
-     * @param cacheName the name of the <code>Cache</code> the operation relates to
-     * @see net.sf.ehcache.event.CacheEventListener
-     */
-    public void notifyCacheAdded(String cacheName) throws CacheException {
-
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("Adding " + cacheName + " to RMI listener");
-        }
-
-        //Don't add if exists.
-        if (cachePeers.get(cacheName) != null) {
-            return;
-        }
-
-        Ehcache cache = cacheManager.getEhcache(cacheName);  
-        if (isDistributed(cache)) {
-            RMICachePeer rmiCachePeer = null;
-            String url = null;
-            try {
-                rmiCachePeer = new RMICachePeer(cache, hostName, port, socketTimeoutMillis);
-                url = rmiCachePeer.getUrl();
-                bind(rmiCachePeer);
-            } catch (Exception e) {
-                throw new CacheException("Problem starting listener for RMICachePeer "
-                        + url + ". Initial cause was " + e.getMessage(), e);
-            }
-            cachePeers.put(cacheName, rmiCachePeer);
-
-        }
-        if (LOG.isDebugEnabled()) {
-            LOG.debug(cachePeers.size() + " RMICachePeers bound in registry for RMI listener");
-        }
-    }
-
-    /**
-     * Called immediately after a cache has been disposed and removed. The calling method will block until
-     * this method returns.
-     * <p/>
-     * Note that the CacheManager calls this method from a synchronized method. Any attempt to call a synchronized
-     * method on CacheManager from this method will cause a deadlock.
-     * <p/>
-     * Note that a {@link net.sf.ehcache.event.CacheEventListener} status changed will also be triggered. Any attempt from that notification
-     * to access CacheManager will also result in a deadlock.
-     *
-     * @param cacheName the name of the <code>Cache</code> the operation relates to
-     */
-    public void notifyCacheRemoved(String cacheName) {
-
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("Removing " + cacheName + " from RMI listener");
-        }
-
-        //don't remove if already removed.
-        if (cachePeers.get(cacheName) == null) {
-            return;
-        }
-
-        RMICachePeer rmiCachePeer = (RMICachePeer) cachePeers.remove(cacheName);
-        String url = null;
-        try {
-            unbind(rmiCachePeer);
-        } catch (Exception e) {
-            throw new CacheException("Error removing Cache Peer "
-                    + url + " from listener. Message was: " + e.getMessage(), e);
-        }
-
-        if (LOG.isDebugEnabled()) {
-            LOG.debug(cachePeers.size() + " RMICachePeers bound in registry for RMI listener");
-        }
-    }
-
-
-    /**
-     * Package local method for testing
-     */
-    void addCachePeer(String name, RMICachePeer peer) {
-        cachePeers.put(name, peer);
-
+    final List getCachePeers() {
+        return cachePeers;
     }
 }

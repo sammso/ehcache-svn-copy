@@ -26,7 +26,7 @@ import java.io.IOException;
  * should be enough to kill threads that do not have special handling.
  *
  * @author Greg Luck
- * @version $Id$
+ * @version $Id: ThreadKiller.java 137 2006-06-28 10:33:09Z gregluck $
  */
 public class ThreadKiller extends Object implements Serializable {
 
@@ -44,3 +44,4 @@ public class ThreadKiller extends Object implements Serializable {
     }
 
 }
+

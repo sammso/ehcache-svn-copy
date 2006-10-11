@@ -16,9 +16,9 @@
 
 package net.sf.ehcache.event;
 
-import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.CacheException;
 import net.sf.ehcache.distribution.CacheReplicator;
 
 import java.util.HashSet;
@@ -42,14 +42,14 @@ public final class RegisteredEventListeners {
      * @see CacheEventListener
      */
     private final Set cacheEventListeners = new HashSet();
-    private final Ehcache cache;
+    private final Cache cache;
 
     /**
      * Constructs a new notification service
      *
      * @param cache
      */
-    public RegisteredEventListeners(Ehcache cache) {
+    public RegisteredEventListeners(Cache cache) {
         this.cache = cache;
     }
 
@@ -62,13 +62,11 @@ public final class RegisteredEventListeners {
      * @see CacheEventListener#notifyElementRemoved
      */
     public final void notifyElementRemoved(Element element, boolean remoteEvent) throws CacheException {
-        if (hasCacheEventListeners()) {
-            Iterator iterator = cacheEventListeners.iterator();
-            while (iterator.hasNext()) {
-                CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-                if (!isCircularNotification(remoteEvent, cacheEventListener)) {
-                    cacheEventListener.notifyElementRemoved(cache, element);
-                }
+        Iterator iterator = cacheEventListeners.iterator();
+        while (iterator.hasNext()) {
+            CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
+            if (!isCircularNotification(remoteEvent, cacheEventListener)) {
+                cacheEventListener.notifyElementRemoved(cache, element);
             }
         }
     }
@@ -78,16 +76,14 @@ public final class RegisteredEventListeners {
      *
      * @param element
      * @param remoteEvent whether the event came from a remote cache peer
-     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)
+     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Cache,net.sf.ehcache.Element)
      */
     public final void notifyElementPut(Element element, boolean remoteEvent) throws CacheException {
-        if (hasCacheEventListeners()) {
-            Iterator iterator = cacheEventListeners.iterator();
-            while (iterator.hasNext()) {
-                CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-                if (!isCircularNotification(remoteEvent, cacheEventListener)) {
-                    cacheEventListener.notifyElementPut(cache, element);
-                }
+        Iterator iterator = cacheEventListeners.iterator();
+        while (iterator.hasNext()) {
+            CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
+            if (!isCircularNotification(remoteEvent, cacheEventListener)) {
+                cacheEventListener.notifyElementPut(cache, element);
             }
         }
     }
@@ -97,16 +93,14 @@ public final class RegisteredEventListeners {
      *
      * @param element
      * @param remoteEvent whether the event came from a remote cache peer
-     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)
+     * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Cache,net.sf.ehcache.Element)
      */
     public final void notifyElementUpdated(Element element, boolean remoteEvent) {
-        if (hasCacheEventListeners()) {
-            Iterator iterator = cacheEventListeners.iterator();
-            while (iterator.hasNext()) {
-                CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-                if (!isCircularNotification(remoteEvent, cacheEventListener)) {
-                    cacheEventListener.notifyElementUpdated(cache, element);
-                }
+        Iterator iterator = cacheEventListeners.iterator();
+        while (iterator.hasNext()) {
+            CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
+            if (!isCircularNotification(remoteEvent, cacheEventListener)) {
+                cacheEventListener.notifyElementUpdated(cache, element);
             }
         }
     }
@@ -114,68 +108,16 @@ public final class RegisteredEventListeners {
     /**
      * Notifies all registered listeners, in no guaranteed order, that an element has expired
      *
-     * @param element     the Element to perform the notification on
+     * @param element
      * @param remoteEvent whether the event came from a remote cache peer
      * @see CacheEventListener#notifyElementExpired
      */
     public final void notifyElementExpiry(Element element, boolean remoteEvent) {
-        if (hasCacheEventListeners()) {
-            Iterator iterator = cacheEventListeners.iterator();
-            while (iterator.hasNext()) {
-                CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-                if (!isCircularNotification(remoteEvent, cacheEventListener)) {
-                    cacheEventListener.notifyElementExpired(cache, element);
-                }
-            }
-        }
-    }
-
-    /**
-     * Returns whether or not at least one cache event listeners has been registered.
-     *
-     * @return true if a one or more listeners have registered, otherwise false
-     */
-    public final boolean hasCacheEventListeners() {
-        return cacheEventListeners.size() > 0;
-    }
-
-    /**
-     * Notifies all registered listeners, in no guaranteed order, that an element has been
-     * evicted from the cache
-     *
-     * @param element     the Element to perform the notification on
-     * @param remoteEvent whether the event came from a remote cache peer
-     * @see CacheEventListener#notifyElementEvicted
-     */
-    public void notifyElementEvicted(Element element, boolean remoteEvent) {
-        if (hasCacheEventListeners()) {
-            Iterator iterator = cacheEventListeners.iterator();
-            while (iterator.hasNext()) {
-                CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-                if (!isCircularNotification(remoteEvent, cacheEventListener)) {
-                    cacheEventListener.notifyElementEvicted(cache, element);
-                }
-            }
-        }
-    }
-
-
-    /**
-     * Notifies all registered listeners, in no guaranteed order, that removeAll
-     * has been called and all elements cleared
-     *
-     * @param remoteEvent whether the event came from a remote cache peer
-     * @see CacheEventListener#notifyElementEvicted
-     */
-    public void notifyRemoveAll(boolean remoteEvent) {
-        if (hasCacheEventListeners()) {
-
-            Iterator iterator = cacheEventListeners.iterator();
-            while (iterator.hasNext()) {
-                CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
-                if (!isCircularNotification(remoteEvent, cacheEventListener)) {
-                    cacheEventListener.notifyRemoveAll(cache);
-                }
+        Iterator iterator = cacheEventListeners.iterator();
+        while (iterator.hasNext()) {
+            CacheEventListener cacheEventListener = (CacheEventListener) iterator.next();
+            if (!isCircularNotification(remoteEvent, cacheEventListener)) {
+                cacheEventListener.notifyElementExpired(cache, element);
             }
         }
     }
@@ -259,6 +201,4 @@ public final class RegisteredEventListeners {
         }
         return stringBuffer.toString();
     }
-
-
 }

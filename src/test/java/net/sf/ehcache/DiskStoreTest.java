@@ -16,19 +16,16 @@
 
 package net.sf.ehcache;
 
-import net.sf.ehcache.distribution.JVMUtil;
 import net.sf.ehcache.store.DiskStore;
 import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
-import net.sf.ehcache.store.Primitive;
+import net.sf.ehcache.distribution.JVMUtil;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.ObjectOutputStream;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
 import java.util.List;
@@ -46,7 +43,7 @@ import java.util.Random;
  */
 public class DiskStoreTest extends AbstractCacheTest {
     private static final Log LOG = LogFactory.getLog(DiskStoreTest.class.getName());
-    private static final int ELEMENT_ON_DISK_SIZE = 1340;
+    private static final int ELEMENT_ON_DISK_SIZE = 1255;
 
     /**
      * teardown
@@ -78,14 +75,6 @@ public class DiskStoreTest extends AbstractCacheTest {
 
     private DiskStore createPersistentDiskStore(String cacheName) {
         Cache cache = new Cache(cacheName, 10000, true, true, 5, 1, true, 600);
-        cache.initialise();
-        DiskStore diskStore = cache.getDiskStore();
-        return diskStore;
-    }
-
-    private DiskStore createAutoPersistentDiskStore(String cacheName) {
-        Cache cache = new Cache(cacheName, 10000, true, true, 5, 1, true, 600);
-        cache.setDiskStorePath(System.getProperty("java.io.tmpdir") + File.separator + DiskStore.generateUniqueDirectory());
         cache.initialise();
         DiskStore diskStore = cache.getDiskStore();
         return diskStore;
@@ -204,41 +193,6 @@ public class DiskStoreTest extends AbstractCacheTest {
     }
 
     /**
-     * Any disk store with an auto generated random directory should not be able to be loaded.
-     */
-    public void testCannotLoadPersistentStoreWithAutoDir() throws IOException, InterruptedException {
-        //initialise
-        String cacheName = "testPersistent";
-        DiskStore diskStore = createAutoPersistentDiskStore(cacheName);
-        diskStore.removeAll();
-
-
-        for (int i = 0; i < 100; i++) {
-            byte[] data = new byte[1024];
-            diskStore.put(new Element("key" + (i + 100), data));
-
-            waitForFlush(diskStore);
-            assertEquals("On the " + i + " iteration: ", ELEMENT_ON_DISK_SIZE * (i + 1), diskStore.getDataFileSize());
-        }
-        assertEquals(100, diskStore.getSize());
-        String diskPath = diskStore.getDataFilePath();
-        diskStore.dispose();
-        Thread.sleep(1000);
-
-        Cache cache = new Cache(cacheName, 10000, true, true, 5, 1, true, 600);
-        cache.setDiskStorePath(diskPath);
-        cache.initialise();
-
-        File dataFile = new File(diskStore.getDataFilePath() + File.separator + diskStore.getDataFileName());
-        assertTrue("File exists", dataFile.exists());
-        assertEquals(0, dataFile.length());
-        assertEquals(0, cache.getSize());
-        diskStore.dispose();
-        assertTrue("File exists", dataFile.exists());
-        assertEquals(0, dataFile.length());
-    }
-
-    /**
      * Tests that we can save and load a persistent store in a repeatable way,
      * and delete and add data.
      */
@@ -307,6 +261,7 @@ public class DiskStoreTest extends AbstractCacheTest {
         assertEquals(0, diskStore.getSize());
     }
 
+
     /**
      * Tests that we can save and load a persistent store in a repeatable way,
      * and delete and add data.
@@ -344,7 +299,6 @@ public class DiskStoreTest extends AbstractCacheTest {
         diskStore.put(new Element("key100", data));
         diskStore.put(new Element("key101", data));
         waitForFlush(diskStore);
-
         //The file does not shrink.
         assertEquals(100 * ELEMENT_ON_DISK_SIZE, dataFile.length());
         assertEquals(97, diskStore.getSize());
@@ -393,46 +347,6 @@ public class DiskStoreTest extends AbstractCacheTest {
         assertNotNull(element);
         assertEquals(value, element.getObjectValue());
     }
-
-
-    /**
-     * Tests the loading of classes
-     */
-    public void testClassloading() throws Exception {
-        final DiskStore diskStore = createDiskStore();
-
-        Long value = new Long(123L);
-        Element element = new Element("key", value);
-        diskStore.put(element);
-        Thread.sleep(1000);
-        Element elementOut = diskStore.get("key");
-        assertEquals(value, elementOut.getObjectValue());
-
-
-
-        Primitive primitive = new Primitive();
-        primitive.integerPrimitive = 123;
-        primitive.longPrimitive = 456L;
-        primitive.bytePrimitive = "a".getBytes()[0];
-        primitive.charPrimitive = 'B';
-        primitive.booleanPrimitive = false;
-
-        //test Serializability
-        ByteArrayOutputStream outstr = new ByteArrayOutputStream();
-        ObjectOutputStream objstr = new ObjectOutputStream(outstr);
-        objstr.writeObject(element);
-        objstr.close();
-
-
-        Element primitiveElement = new Element("primitive", primitive);
-        diskStore.put(primitiveElement);
-        Thread.sleep(1000);
-        elementOut = diskStore.get("primitive");
-        assertEquals(primitive, elementOut.getObjectValue());
-
-    }
-
-
 
     /**
      * Tests adding an entry and waiting for it to be written.
@@ -627,43 +541,6 @@ public class DiskStoreTest extends AbstractCacheTest {
     }
 
     /**
-     * Checks that the expiry thread runs and expires elements which has the effect
-     * of preventing the disk store from continously growing.
-     * Ran for 6 hours through 10000 outer loops. No memory use increase.
-     * Using a key of "key" + i * outer) you get early slots that cannot be reused. The DiskStore
-     * actual size therefore starts at 133890 and ends at 616830. There is quite a lot of space
-     * that cannot be used because of fragmentation. Question? Should an effort be made to coalesce
-     * fragmented space? Unlikely in production to get contiguous fragments as in the first form
-     * of this test.
-     *
-     * Using a key of new Integer(i * outer) the size stays constant at 140800.
-     *
-     *
-     * @throws InterruptedException
-     */
-    public void testExpiryWithSize() throws InterruptedException {
-        DiskStore diskStore = createDiskStore();
-        diskStore.removeAll();
-
-        byte[] data = new byte[1024];
-        for (int outer = 1; outer <= 10; outer++) {
-            for (int i = 0; i < 100; i++) {
-                Element element = new Element(new Integer(i * outer), data);
-                element.setTimeToLive(1);
-                diskStore.put(element);
-            }
-            waitForFlush(diskStore);
-            int predictedSize = 140800;
-            long actualSize = diskStore.getDataFileSize();
-            LOG.info("Predicted Size: " + predictedSize + " Actual Size: " + actualSize);
-            assertEquals(predictedSize, actualSize);
-            LOG.info("Memory Use: " + measureMemoryUse());
-        }
-
-
-    }
-
-    /**
      * Waits for all spooled elements to be written to disk.
      */
     private static void waitForFlush(DiskStore diskStore) throws InterruptedException {
@@ -673,7 +550,7 @@ public class DiskStoreTest extends AbstractCacheTest {
                 return;
             } else {
                 //Wait for 100ms before checking again
-                Thread.sleep(10);
+                Thread.sleep(5);
             }
         }
     }
@@ -743,6 +620,56 @@ public class DiskStoreTest extends AbstractCacheTest {
     }
 
     /**
+     * Runs a set of threads, for a fixed amount of time.
+     */
+    private static void runThreads(final List executables) throws Exception {
+
+        final long endTime = System.currentTimeMillis() + 3000;
+        final ArrayList errors = new ArrayList();
+
+        // Spin up the threads
+        final Thread[] threads = new Thread[executables.size()];
+        for (int i = 0; i < threads.length; i++) {
+            final Executable executable = (Executable) executables.get(i);
+            threads[i] = new Thread() {
+                public void run() {
+                    try {
+                        // Run the thread until the given end time
+                        while (System.currentTimeMillis() < endTime) {
+                            executable.execute();
+                        }
+                    } catch (Throwable t) {
+                        // Hang on to any errors
+                        LOG.error(t.getMessage(), t);
+                        errors.add(t);
+                    }
+                }
+            };
+            threads[i].start();
+        }
+
+        // Wait for the threads to finish
+        for (int i = 0; i < threads.length; i++) {
+            threads[i].join();
+        }
+
+        // Fail if any error happened
+        if (errors.size() > 0) {
+            fail(errors.size() + " errors");
+        }
+    }
+
+    /**
+     * A runnable, that can throw an exception.
+     */
+    private interface Executable {
+        /**
+         * Executes this object.
+         */
+        void execute() throws Exception;
+    }
+
+    /**
      * Tests how data is written to a random access file.
      * <p/>
      * It makes sure that bytes are immediately written to disk after a write.
@@ -792,28 +719,6 @@ public class DiskStoreTest extends AbstractCacheTest {
         }
     }
 
-
-    /**
-     * This test is designed to be used with a profiler to explore the ways in which DiskStore
-     * uses memory. It does not do much on its own.
-     */
-    public void testOutOfMemoryErrorOnOverflowToDisk() throws Exception {
-
-        //Set size so the second element overflows to disk.
-        Cache cache = new Cache("test", 1000, MemoryStoreEvictionPolicy.LRU, true, null, true, 500, 500, false, 1, null);
-        manager.addCache(cache);
-        int i = 0;
-
-        Random random = new Random();
-        for (; i < 5500; i++) {
-            byte[] bytes = new byte[10000];
-            random.nextBytes(bytes);
-            cache.put(new Element("" + i, bytes));
-        }
-        LOG.info("Elements written: " + i);
-        //Thread.sleep(100000);
-    }
-
     /**
      * Test overflow to disk = true, using 100000 records.
      * 35 seconds v1.38 DiskStore
@@ -846,15 +751,14 @@ public class DiskStoreTest extends AbstractCacheTest {
         assertTrue(99000 <= cache.getDiskStore().getSize());
     }
 
+
     /**
      * Runs out of memory at 5,099,999 elements with the standard 64MB VM size.
      * <p/>
      * The reason that it is not infinite is because of a small amount of memory used (about 12 bytes) used for
      * the disk store index in this case.
-     * <p/>
-     * Slow tests
      */
-    public void xtestMaximumCacheEntriesIn64MBWithOverflowToDisk() throws Exception {
+    public void testMaximumCacheEntriesIn64MBWithOverflowToDisk() throws Exception {
 
         Cache cache = new Cache("test", 1000, MemoryStoreEvictionPolicy.LRU, true, null, true, 500, 500, false, 1, null);
         manager.addCache(cache);
@@ -897,10 +801,8 @@ public class DiskStoreTest extends AbstractCacheTest {
      * The change was to stop adding DiskStore retrievals into the MemoryStore. This made sense when the only
      * policy was LRU. In the new version an Elment, once evicted from the MemoryStore, stays in the DiskStore
      * until expiry or removal. This avoids a lot of serialization overhead.
-     * <p/>
-     * Slow tests
      */
-    public void xTestLargePutGetPerformanceWithOverflowToDisk() throws Exception {
+    public void testLargePutGetPerformanceWithOverflowToDisk() throws Exception {
 
         Cache cache = new Cache("test", 1000, MemoryStoreEvictionPolicy.LRU, true, null, true, 500, 500, false, 10000, null);
         manager.addCache(cache);

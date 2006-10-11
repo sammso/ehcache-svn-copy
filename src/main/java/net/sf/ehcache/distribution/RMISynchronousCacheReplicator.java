@@ -16,15 +16,16 @@
 
 package net.sf.ehcache.distribution;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.Status;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 
 import java.io.Serializable;
 import java.util.List;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * Listens to {@link net.sf.ehcache.CacheManager} and {@link net.sf.ehcache.Cache} events and propagates those to
@@ -77,7 +78,7 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      * @param replicateUpdatesViaCopy
      * @param replicateRemovals
      */
-    public RMISynchronousCacheReplicator(
+    protected RMISynchronousCacheReplicator(
             boolean replicatePuts,
             boolean replicateUpdates,
             boolean replicateUpdatesViaCopy,
@@ -99,7 +100,7 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public void notifyElementPut(final Ehcache cache, final Element element) throws CacheException {
+    public void notifyElementPut(final Cache cache, final Element element) throws CacheException {
         if (notAlive()) {
             return;
         }
@@ -123,10 +124,9 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      * Does the actual RMI remote call
      *
      * @param element
-     * @param cache
      * @throws RemoteCacheException if anything goes wrong with the remote call
      */
-    private static void replicatePutNotification(Ehcache cache, Element element) throws RemoteCacheException {
+    private static void replicatePutNotification(Cache cache, Element element) throws RemoteCacheException {
         List cachePeers = listRemoteCachePeers(cache);
         for (int i = 0; i < cachePeers.size(); i++) {
             CachePeer cachePeer = (CachePeer) cachePeers.get(i);
@@ -152,7 +152,7 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public void notifyElementUpdated(final Ehcache cache, final Element element) throws CacheException {
+    public void notifyElementUpdated(final Cache cache, final Element element) throws CacheException {
         if (notAlive()) {
             return;
         }
@@ -182,19 +182,18 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
     }
 
     /**
-     * Called immediately after an attempt to remove an element. The remove method will block until
+     * Called immediately after an element has been removed. The remove method will block until
      * this method returns.
      * <p/>
-     * This notification is received regardless of whether the cache had an element matching
-     * the removal key or not. If an element was removed, the element is passed to this method,
-     * otherwise a synthetic element, with only the key set is passed in.
+     * Ehcache does not check for
+     * <p/>
+     * As the {@link net.sf.ehcache.Element} has been removed, only what was the key of the element is known.
      * <p/>
      *
      * @param cache   the cache emitting the notification
-     * @param element the element just deleted, or a synthetic element with just the key set if
-     *                no element was removed.param element just deleted
+     * @param element just deleted
      */
-    public void notifyElementRemoved(final Ehcache cache, final Element element) throws CacheException {
+    public void notifyElementRemoved(final Cache cache, final Element element) throws CacheException {
         if (notAlive()) {
             return;
         }
@@ -217,10 +216,9 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      * Does the actual RMI remote call
      *
      * @param key
-     * @param cache
      * @throws RemoteCacheException if anything goes wrong with the remote call
      */
-    private static void replicateRemovalNotification(Ehcache cache, Serializable key) throws RemoteCacheException {
+    private static void replicateRemovalNotification(Cache cache, Serializable key) throws RemoteCacheException {
         List cachePeers = listRemoteCachePeers(cache);
         for (int i = 0; i < cachePeers.size(); i++) {
             CachePeer cachePeer = (CachePeer) cachePeers.get(i);
@@ -232,6 +230,14 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
         }
     }
 
+    /**
+     * Package protected List of cache peers
+     * @param cache
+     */
+    static List listRemoteCachePeers(Cache cache) {
+        CacheManagerPeerProvider provider = cache.getCacheManager().getCachePeerProvider();
+        return provider.listRemoteCachePeers(cache);
+    }
 
     /**
      * {@inheritDoc}
@@ -240,79 +246,11 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      * expire in the remote cache at the same time. If the remote peer is not configured the same way they should
      * not be in an cache cluster.
      */
-    public final void notifyElementExpired(final Ehcache cache, final Element element) {
+    public final void notifyElementExpired(final Cache cache, final Element element) {
         /*do not propagate expiries. The element should expire in the remote cache at the same time, thus
           preseerving coherency.
           */
     }
-
-    /**
-     * Called immediately after an element is evicted from the cache. Evicted in this sense
-     * means evicted from one store and not moved to another, so that it exists nowhere in the
-     * local cache.
-     * <p/>
-     * In a sense the Element has been <i>removed</i> from the cache, but it is different,
-     * thus the separate notification.
-     * <p/>
-     * This replicator does not propagate these events
-     *
-     * @param cache   the cache emitting the notification
-     * @param element the element that has just been evicted
-     */
-    public void notifyElementEvicted(final Ehcache cache, final Element element) {
-        /**
-         * do not notify these
-         */
-    }
-
-
-    /**
-     * Called during {@link net.sf.ehcache.Ehcache#removeAll()} to indicate that the all
-     * elements have been removed from the cache in a bulk operation. The usual
-     * {@link #notifyElementRemoved(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)}
-     * is not called.
-     * <p/>
-     * This notification exists because clearing a cache is a special case. It is often
-     * not practical to serially process notifications where potentially millions of elements
-     * have been bulk deleted.
-     *
-     * @param cache the cache emitting the notification
-     */
-    public void notifyRemoveAll(final Ehcache cache) {
-        if (notAlive()) {
-            return;
-        }
-
-        if (!replicateRemovals) {
-            return;
-        }
-
-        replicateRemoveAllNotification(cache);
-    }
-
-    private void replicateRemoveAllNotification(Ehcache cache) {
-        List cachePeers = listRemoteCachePeers(cache);
-        for (int i = 0; i < cachePeers.size(); i++) {
-            CachePeer cachePeer = (CachePeer) cachePeers.get(i);
-            try {
-                cachePeer.removeAll();
-            } catch (Throwable e) {
-                throw new RemoteCacheException("Error doing removeAll to remote peer. Message was: " + e.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Package protected List of cache peers
-     *
-     * @param cache
-     * @return a list of {@link CachePeer} peers for the given cache, excluding the local peer.
-     */
-    static List listRemoteCachePeers(Ehcache cache) {
-        CacheManagerPeerProvider provider = cache.getCacheManager().getCachePeerProvider();
-        return provider.listRemoteCachePeers(cache);
-    }
-
 
     /**
      * @return whether update is through copy or invalidate
@@ -327,18 +265,14 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      * @return true if the status is not STATUS_ALIVE
      */
     public final boolean notAlive() {
-        return !alive();
+        return !status.equals(Status.STATUS_ALIVE);
     }
 
     /**
      * Checks that the replicator is is <code>STATUS_ALIVE</code>.
      */
     public final boolean alive() {
-        if (status == null) {
-            return false;
-        } else {
-            return (status.equals(Status.STATUS_ALIVE));
-        }
+        return (status.equals(Status.STATUS_ALIVE));
     }
 
     /**
@@ -346,20 +280,5 @@ public class RMISynchronousCacheReplicator implements CacheReplicator {
      */
     public void dispose() {
         status = Status.STATUS_SHUTDOWN;
-    }
-
-    /**
-     * Creates a clone of this listener. This method will only be called by ehcache before a cache is initialized.
-     * <p/>
-     * This may not be possible for listeners after they have been initialized. Implementations should throw
-     * CloneNotSupportedException if they do not support clone.
-     *
-     * @return a clone
-     * @throws CloneNotSupportedException if the listener could not be cloned.
-     */
-    public Object clone() throws CloneNotSupportedException {
-        //shutup checkstyle
-        super.clone();
-        return new RMISynchronousCacheReplicator(replicatePuts, replicateUpdates, replicateUpdatesViaCopy, replicateRemovals);
     }
 }

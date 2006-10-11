@@ -1,44 +1,35 @@
+ ------
+ ehcache 1.2 User Guide
+ ------
+ ------
+ Date
+ ------
 
-ehcache 1.2.3 User Guide
+ehcache 1.2 User Guide
 
-    * {{{./preface.html}Preface}}
+    * {{{getting_started.html}Getting Started}}
 
-    * {{{./introduction.html}Introduction}}
+    * {{{dependencies.html}Dependencies}}
 
-    * {{{./getting_started.html}Getting Started}}
+    * {{{concepts.html}Cache Concepts}}
 
-    * {{{./dependencies.html}Dependencies}}
+    * {{{storage_options.html}Storage Options}}
 
-    * {{{./concepts.html}Cache Concepts}}
+    * {{{class_loading.html}Class loading and Class Loaders}}
 
-    * {{{./storage_options.html}Storage Options}}
+    * {{{performance_considerations.html}Performance Considerations}}
 
-    * {{{./class_loading.html}Class loading and Class Loaders}}
+    * {{{distributed_caching.html}Distributed Caching}}
 
-    * {{{./performance_considerations.html}Performance Considerations}}
+    * {{{shutdown_considerations.html}Virtual Machine Shutdown Considerations}}
 
-    * {{{./cache_decorators.html}Cache Decorators}} 
+    * {{{logging.html}Logging}}
 
-    * {{{./j2ee_servlet_caching.html}J2EE Servlet Caching}} 
+    * {{{configuration.html}Cache Configuration}}
 
-    * {{{./distributed_caching.html}Distributed Caching}}
+    * {{{cachemanager_event_listeners.html}CacheManager Event Listeners}}
 
-    * {{{./distributed_design.html}Distributed Design}}
+    * {{{cache_event_listeners.html}Cache Event Listeners}}
 
-    * {{{./shutdown_considerations.html}Virtual Machine Shutdown Considerations}}
+    * {{{hibernate.html}Configuration for Hibernate Caches}}
 
-    * {{{./logging.html}Logging & Debugging}}
-
-    * {{{./configuration.html}Cache Configuration}}
-
-    * {{{./cachemanager_event_listeners.html}CacheManager Event Listeners}}
-
-    * {{{./cache_event_listeners.html}Cache Event Listeners}}
-
-    * {{{./hibernate.html}Hibernate Caching}}
-
-    * {{{./constructs_design.html}Constructs Design}}
-
-    * {{{./hibernate.html}Hibernate Caching}}
-
-    * {{{./faq.html}FAQ}}

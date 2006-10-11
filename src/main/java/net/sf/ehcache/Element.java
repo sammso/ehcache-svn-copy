@@ -28,11 +28,11 @@ import java.io.ObjectOutputStream;
 import java.io.Serializable;
 
 /**
- * A Cache Element, consisting of a key, value and attributes.
+ * A Cache Element, consisting of a key, value and attributes. 
  * <p/>
  * From ehcache-1.2, Elements can have keys and values that are Serializable or Objects. To preserve backward
  * compatibility, special accessor methods for Object keys and values are provided: {@link #getObjectKey()} and
- * {@link #getObjectValue()}. If placing Objects in ehcache, developers must use the new getObject... methods to
+ * {@link #getObjectValue()}. If placing Objects in ehcace, developers must use the new getObject... methods to
  * avoid CacheExceptions. The get... methods are reserved for Serializable keys and values.
  *
  * @author Greg Luck
@@ -42,13 +42,12 @@ import java.io.Serializable;
 public final class Element implements Serializable, Cloneable {
     /**
      * serial version
-     * Updated version 1.2 and again for 1.2.1
+     * Updated version 1.2
      */
-    private static final long serialVersionUID = 3343087714201120157L;
+    private static final long serialVersionUID = 7832456720941087574L;
 
     private static final Log LOG = LogFactory.getLog(Element.class.getName());
 
-    private static final long ONE_SECOND = 1000L;
 
     /**
      * the cache key.
@@ -58,11 +57,10 @@ public final class Element implements Serializable, Cloneable {
     /**
      * the value.
      */
-    private Object value;
+    private final Object value;
 
     /**
-     * version of the element. System.currentTimeMillis() is used to compute version for updated elements. That
-     * way, the actual version of the updated element does not need to be checked.
+     * version of the element.
      */
     private long version;
 
@@ -87,41 +85,10 @@ public final class Element implements Serializable, Cloneable {
     private long hitCount;
 
     /**
-     * The amount of time for the element to live, in seconds. 0 indicates unlimited.
-     */
-    private int timeToLive;
-
-    /**
-     * The amount of time for the element to idle, in seconds. 0 indicates unlimited.
-     */
-    private int timeToIdle;
-
-    /**
-     * If there is an Element in the Cache and it is replaced with a new Element for the same key,
-     * then both the version number and lastUpdateTime should be updated to reflect that. The creation time
-     * will be the creation time of the new Element, not the original one, so that TTL concepts still work.
-     */
-    private long lastUpdateTime;
-
-    /**
-     * Whether the element is eternal, i.e. never expires.
-     */
-    private boolean eternal;
-
-
-    /**
-     * Whether any combination of eternal, TTL or TTI has been set.
-     */
-    private boolean lifespanSet;
-
-
-
-    /**
      * A full constructor.
      * <p/>
      * Creation time is set to the current time. Last Access Time and Previous To Last Access Time
      * are not set.
-     *
      * @since .4
      */
     public Element(Serializable key, Serializable value, long version) {
@@ -134,7 +101,6 @@ public final class Element implements Serializable, Cloneable {
      * <p/>
      * Creation time is set to the current time. Last Access Time and Previous To Last Access Time
      * are not set.
-     *
      * @since 1.2
      */
     public Element(Object key, Object value, long version) {
@@ -152,7 +118,7 @@ public final class Element implements Serializable, Cloneable {
      * @param value
      */
     public Element(Serializable key, Serializable value) {
-        this((Object) key, (Object) value, 1L);
+        this((Object)key, (Object)value, 1L);
     }
 
     /**
@@ -242,26 +208,6 @@ public final class Element implements Serializable, Cloneable {
     }
 
     /**
-     * Sets time to Live
-     *
-     * @param timeToLiveSeconds the number of seconds to live
-     */
-    public void setTimeToLive(int timeToLiveSeconds) {
-        this.timeToLive = timeToLiveSeconds;
-        lifespanSet = true;
-    }
-
-    /**
-     * Sets time to idle
-     *
-     * @param timeToIdleSeconds the number of seconds to idle
-     */
-    public void setTimeToIdle(int timeToIdleSeconds) {
-        this.timeToIdle = timeToIdleSeconds;
-        lifespanSet = true;
-    }
-
-    /**
      * Gets the hascode, based on the key.
      */
     public final int hashCode() {
@@ -347,15 +293,6 @@ public final class Element implements Serializable, Cloneable {
     }
 
     /**
-     * Sets the last access time to now.
-     */
-    public final void updateUpdateStatistics() {
-        lastUpdateTime = System.currentTimeMillis();
-        version = lastUpdateTime;
-    }
-
-
-    /**
      * Returns a {@link String} representation of the {@link Element}.
      */
     public final String toString() {
@@ -380,7 +317,6 @@ public final class Element implements Serializable, Cloneable {
      * <p/>
      * Warning: This can be very slow on large object graphs. If you use this method
      * you should write a performance test to verify suitability.
-     *
      * @return a new {@link Element}, with exactly the same field values as the one it was cloned from.
      * @throws CloneNotSupportedException
      */
@@ -434,12 +370,10 @@ public final class Element implements Serializable, Cloneable {
      * however.
      * <p/>
      * Warning: This method can be <b>very slow</b> for values which contain large object graphs.
-     * <p/>
-     * If the key or value of the Element is not Serializable, an error will be logged and 0 will be returned.
+     *
      * @return The serialized size in bytes
      */
     public final long getSerializedSize() {
-
         if (!isSerializable()) {
             return 0;
         }
@@ -452,7 +386,7 @@ public final class Element implements Serializable, Cloneable {
             size = bout.size();
             return size;
         } catch (IOException e) {
-            LOG.debug("Error measuring element size for element with key " + key + ". Cause was: " + e.getMessage());
+            LOG.error("Error measuring element size for element with key " + key);
         } finally {
             try {
                 if (oos != null) {
@@ -472,7 +406,6 @@ public final class Element implements Serializable, Cloneable {
      * While Element implements Serializable, it is possible to create non Serializable elements
      * for use in MemoryStores. This method checks that an instance of Element really is Serializable
      * and will not throw a NonSerializableException if Serialized.
-     *
      * @return true if the element is Serializable
      * @since 1.2
      */
@@ -488,111 +421,13 @@ public final class Element implements Serializable, Cloneable {
      * <p/>
      * This method checks that an instance of an Element's key really is Serializable
      * and will not throw a NonSerializableException if Serialized.
-     *
      * @return true if the element's key is Serializable
      * @since 1.2
      */
     public final boolean isKeySerializable() {
         return key instanceof Serializable;
-    }
-
-    /**
-     * If there is an Element in the Cache and it is replaced with a new Element for the same key,
-     * then both the version number and lastUpdateTime should be updated to reflect that. The creation time
-     * will be the creation time of the new Element, not the original one, so that TTL concepts still work.
-     *
-     * @return the time when the last update occured. If this is the original Element, the time will be null
-     */
-    public long getLastUpdateTime() {
-        return lastUpdateTime;
-    }
-
-    /**
-     * An element is expired if the expiration time as given by {@link #getExpirationTime()} is in the past.
-     *
-     * @return true if the Element is expired, otherwise false. If no lifespan has been set for the Element it is
-     *         considered not able to expire.
-     * @see #getExpirationTime()
-     */
-    public boolean isExpired() {
-        if (!lifespanSet) {
-            return false;
-        }
-
-        long now = System.currentTimeMillis();
-        long expirationTime = getExpirationTime();
-
-        return now > expirationTime;
-    }
-
-    /**
-     * Returns the expiration time based on time to live. If this element also has a time to idle setting, the expiry
-     * time will vary depending on whether the element is accessed.
-     *
-     * @return the time to expiration
-     */
-    public long getExpirationTime() {
-
-        if (!lifespanSet || eternal || (timeToLive == 0 && timeToIdle == 0)) {
-            return Long.MAX_VALUE;
-        }
-
-        long expirationTime = 0;
-        long ttlExpiry = creationTime + timeToLive * ONE_SECOND;
-
-        long mostRecentTime = Math.max(creationTime, nextToLastAccessTime);
-        long ttiExpiry = mostRecentTime + timeToIdle * ONE_SECOND;
-
-        if (timeToLive != 0 && (timeToIdle == 0 || lastAccessTime == 0)) {
-            expirationTime = ttlExpiry;
-        } else if (timeToLive == 0) {
-            expirationTime = ttiExpiry;
-        } else {
-            expirationTime = Math.min(ttlExpiry, ttiExpiry);
-        }
-        return expirationTime;
-    }
-
-    /**
-     * @return true if the element is eternal
-     */
-    public boolean isEternal() {
-        return eternal;
-    }
-
-    /**
-     * Sets whether the element is eternal.
-     *
-     * @param eternal
-     */
-    public void setEternal(boolean eternal) {
-        this.eternal = eternal;
-        lifespanSet = true;
-    }
-
-    /**
-     * Whether any combination of eternal, TTL or TTI has been set.
-     *
-     * @return true if set.
-     */
-    public boolean isLifespanSet() {
-        return lifespanSet;
-    }
-
-    /**
-     * @return the time to live, in seconds
-     */
-    public int getTimeToLive() {
-        return timeToLive;
-    }
-
-    /**
-     * @return the time to idle, in seconds
-     */
-    public int getTimeToIdle() {
-        return timeToIdle;
-    }
 }
+        }
 
 
 

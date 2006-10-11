@@ -17,31 +17,29 @@
 package net.sf.ehcache.config;
 
 import net.sf.ehcache.Cache;
-import net.sf.ehcache.CacheException;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
-import net.sf.ehcache.bootstrap.BootstrapCacheLoader;
-import net.sf.ehcache.bootstrap.BootstrapCacheLoaderFactory;
+import net.sf.ehcache.CacheException;
+import net.sf.ehcache.distribution.CacheManagerPeerProviderFactory;
+import net.sf.ehcache.distribution.CacheManagerPeerProvider;
 import net.sf.ehcache.distribution.CacheManagerPeerListener;
 import net.sf.ehcache.distribution.CacheManagerPeerListenerFactory;
-import net.sf.ehcache.distribution.CacheManagerPeerProvider;
-import net.sf.ehcache.distribution.CacheManagerPeerProviderFactory;
 import net.sf.ehcache.event.CacheEventListener;
 import net.sf.ehcache.event.CacheEventListenerFactory;
+import net.sf.ehcache.event.RegisteredEventListeners;
 import net.sf.ehcache.event.CacheManagerEventListener;
 import net.sf.ehcache.event.CacheManagerEventListenerFactory;
-import net.sf.ehcache.event.RegisteredEventListeners;
 import net.sf.ehcache.util.ClassLoaderUtil;
 import net.sf.ehcache.util.PropertyUtil;
+
+import java.util.Properties;
+import java.util.Map;
+import java.util.List;
+import java.util.Set;
+import java.util.Iterator;
+import java.util.HashSet;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 
 /**
  * The configuration for ehcache.
@@ -107,7 +105,7 @@ public final class ConfigurationHelper {
             //
         }
         if (className == null) {
-            LOG.debug("CacheEventListener factory not configured. Skipping...");
+            LOG.error("CacheEventListener factory not configured. Skipping listener configuration");
         } else {
             CacheEventListenerFactory factory = (CacheEventListenerFactory)
                     ClassLoaderUtil.createNewInstance(className);
@@ -116,32 +114,6 @@ public final class ConfigurationHelper {
         }
         return cacheEventListener;
     }
-
-    /**
-     * Tries to load the class specified.
-     *
-     * @return If there is none returns null.
-     */
-    public final BootstrapCacheLoader createBootstrapCacheLoader(
-            CacheConfiguration.BootstrapCacheLoaderFactoryConfiguration factoryConfiguration) throws CacheException {
-        String className = null;
-        BootstrapCacheLoader bootstrapCacheLoader = null;
-        try {
-            className = factoryConfiguration.fullyQualifiedClassPath;
-        } catch (Throwable t) {
-            //No class created because the config was missing
-        }
-        if (className == null || className.length() == 0) {
-            LOG.debug("No BootstrapCacheLoaderFactory class specified. Skipping...");
-        } else {
-            BootstrapCacheLoaderFactory factory = (BootstrapCacheLoaderFactory)
-                    ClassLoaderUtil.createNewInstance(className);
-            Properties properties = PropertyUtil.parseProperties(factoryConfiguration.getProperties());
-            return factory.createBootstrapCacheLoader(properties);
-        }
-        return bootstrapCacheLoader;
-    }
-
 
     /**
      * Tries to load the class specified otherwise defaults to null
@@ -215,7 +187,6 @@ public final class ConfigurationHelper {
         }
     }
 
-
     /**
      * @return the disk store path, or null if not set.
      */
@@ -232,7 +203,7 @@ public final class ConfigurationHelper {
      * @return the Default Cache
      * @throws net.sf.ehcache.CacheException if there is no default cache
      */
-    public final Ehcache createDefaultCache() throws CacheException {
+    public final Cache createDefaultCache() throws CacheException {
         CacheConfiguration cacheConfiguration = configuration.getDefaultCacheConfiguration();
         if (cacheConfiguration == null) {
             throw new CacheException("Illegal configuration. No default cache is configured.");
@@ -264,7 +235,7 @@ public final class ConfigurationHelper {
      *
      * @return the cache, or null if there is no match
      */
-    final Ehcache createCacheFromName(String name) {
+    final Cache createCacheFromName(String name) {
         CacheConfiguration cacheConfiguration = null;
         Set cacheConfigurations = configuration.getCacheConfigurations().entrySet();
         for (Iterator iterator = cacheConfigurations.iterator(); iterator.hasNext();) {
@@ -298,13 +269,9 @@ public final class ConfigurationHelper {
                 cacheConfiguration.timeToIdleSeconds,
                 cacheConfiguration.diskPersistent,
                 cacheConfiguration.diskExpiryThreadIntervalSeconds,
-                null,
                 null);
         RegisteredEventListeners listeners = cache.getCacheEventNotificationService();
         registerCacheListeners(cacheConfiguration, listeners);
-        BootstrapCacheLoader bootstrapCacheLoader = createBootstrapCacheLoader(
-                cacheConfiguration.bootstrapCacheLoaderFactoryConfiguration);
-        cache.setBootstrapCacheLoader(bootstrapCacheLoader);
         return cache;
     }
 

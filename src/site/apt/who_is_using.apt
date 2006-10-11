@@ -27,11 +27,6 @@ be included in the list.
  
  * {{{http://jofti.com/}Jofti}}. A cached object indexing and searching system.
 
- * {{{http://acegisecurity.org/index.html}Acegi}}. A security system for Spring.
-
- * {{{http://labs.jboss.com/portal/kosmos}Kosmos}}. Kosmos stands for Komposite Open Source Monitoring Suite..
-
-
 * Distributions
 
  * {{{http://jpackage.org/}JPackage}}. Java libraries packaged for Linux.

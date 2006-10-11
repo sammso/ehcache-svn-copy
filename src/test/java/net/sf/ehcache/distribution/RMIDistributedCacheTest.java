@@ -17,10 +17,10 @@
 package net.sf.ehcache.distribution;
 
 import junit.framework.TestCase;
-import net.sf.ehcache.AbstractCacheTest;
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
+import net.sf.ehcache.AbstractCacheTest;
 
 import java.rmi.Naming;
 import java.util.Date;
@@ -47,8 +47,8 @@ public class RMIDistributedCacheTest extends TestCase {
     /**
      * the cache we wish to test
      */
-    private Ehcache sampleCache1;
-    private Ehcache sampleCache2;
+    private Cache sampleCache1;
+    private Cache sampleCache2;
 
 
     private String hostName = "localhost";
@@ -69,7 +69,6 @@ public class RMIDistributedCacheTest extends TestCase {
         }
 
         manager = CacheManager.create(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed1.xml");
-        MulticastKeepaliveHeartbeatSender.setHeartBeatInterval(1000);
         sampleCache1 = manager.getCache(cacheName1);
         sampleCache2 = manager.getCache(cacheName2);
         sampleCache1.removeAll();
@@ -115,16 +114,12 @@ public class RMIDistributedCacheTest extends TestCase {
         if (JVMUtil.isSingleRMIRegistryPerVM()) {
             return;
         }
-        RMICacheManagerPeerListener[] listeners = new RMICacheManagerPeerListener[100];
+
         for (int i = 0; i < 100; i++) {
-            listeners[i] = new RMICacheManagerPeerListener(hostName, port, manager, new Integer(2000));
+            new RMICacheManagerPeerListener(hostName, port, manager, new Integer(2000));
         }
         cache1Peer = (CachePeer) Naming.lookup(createNamingUrl() + cacheName1);
         assertNotNull(cache1Peer);
-
-        for (int i = 0; i < 100; i++) {
-            listeners[i].dispose();
-        }
     }
 
     private String createNamingUrl() {

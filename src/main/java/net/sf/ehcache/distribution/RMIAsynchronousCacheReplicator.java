@@ -16,14 +16,15 @@
 
 package net.sf.ehcache.distribution;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.Status;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.Serializable;
+import java.lang.ref.SoftReference;
 import java.rmi.UnmarshalException;
 import java.util.ArrayList;
 import java.util.LinkedList;
@@ -42,7 +43,7 @@ import java.util.List;
  * to get an {@link OutOfMemoryError} using distribution in circumstances when it would not happen if we were
  * just using the DiskStore.
  * <p/>
- * Accordingly, the Element values in {@link EventMessage}s are held by {@link java.lang.ref.SoftReference} in the queue,
+ * Accordingly, {@link EventMessage}s are held by {@link SoftReference} in the queue,
  * so that they can be discarded if required by the GC to avoid an {@link OutOfMemoryError}. A log message
  * will be issued on each flush of the queue if there were any forced discards. One problem with GC collection
  * of SoftReferences is that the VM (JDK1.5 anyway) will do that rather than grow the heap size to the maximum.
@@ -52,22 +53,20 @@ import java.util.List;
  * @author Greg Luck
  * @version $Id$
  */
-public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicator {
+public final class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicator {
 
-
+    /**
+     * The amount of time the replication thread sleeps after it detects the replicationQueue is empty
+     * before checking again.
+     */
+    protected static final int REPLICATION_THREAD_INTERVAL = 1000;
 
     private static final Log LOG = LogFactory.getLog(RMIAsynchronousCacheReplicator.class.getName());
 
     /**
      * A thread which handles replication, so that replication can take place asynchronously and not hold up the cache
      */
-    protected Thread replicationThread = new ReplicationThread();
-
-    /**
-     * The amount of time the replication thread sleeps after it detects the replicationQueue is empty
-     * before checking again.
-     */
-    protected int asynchronousReplicationInterval;
+    protected final Thread replicationThread = new ReplicationThread();
 
     /**
      * A queue of updates.
@@ -81,25 +80,22 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
      * @param replicateUpdates
      * @param replicateUpdatesViaCopy
      * @param replicateRemovals
-     * @param asynchronousReplicationInterval
      */
-    public RMIAsynchronousCacheReplicator(
+    protected RMIAsynchronousCacheReplicator(
             boolean replicatePuts,
             boolean replicateUpdates,
             boolean replicateUpdatesViaCopy,
-            boolean replicateRemovals,
-            int asynchronousReplicationInterval) {
+            boolean replicateRemovals) {
         super(replicatePuts,
                 replicateUpdates,
                 replicateUpdatesViaCopy,
                 replicateRemovals);
-        this.asynchronousReplicationInterval = asynchronousReplicationInterval;
         status = Status.STATUS_ALIVE;
         replicationThread.start();
     }
 
     /**
-     * RemoteDebugger method for the replicationQueue thread.
+     * Main method for the replicationQueue thread.
      * <p/>
      * Note that the replicationQueue thread locks the cache for the entire time it is writing elements to the disk.
      */
@@ -108,7 +104,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
             // Wait for elements in the replicationQueue
             while (alive() && replicationQueue != null && replicationQueue.size() == 0) {
                 try {
-                    Thread.sleep(asynchronousReplicationInterval);
+                    Thread.sleep(REPLICATION_THREAD_INTERVAL);
                 } catch (InterruptedException e) {
                     LOG.debug("Spool Thread interrupted.");
                     return;
@@ -137,7 +133,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public final void notifyElementPut(final Ehcache cache, final Element element) throws CacheException {
+    public final void notifyElementPut(final Cache cache, final Element element) throws CacheException {
         if (notAlive()) {
             return;
         }
@@ -152,6 +148,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
             }
             return;
         }
+
         addToReplicationQueue(new CacheEventMessage(EventMessage.PUT, cache, element, null));
     }
 
@@ -168,7 +165,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public final void notifyElementUpdated(final Ehcache cache, final Element element) throws CacheException {
+    public final void notifyElementUpdated(final Cache cache, final Element element) throws CacheException {
         if (notAlive()) {
             return;
         }
@@ -196,22 +193,15 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
     }
 
     /**
-     * Called immediately after an attempt to remove an element. The remove method will block until
+     * Called immediately after an element has been removed. The remove method will block until
      * this method returns.
      * <p/>
-     * This notification is received regardless of whether the cache had an element matching
-     * the removal key or not. If an element was removed, the element is passed to this method,
-     * otherwise a synthetic element, with only the key set is passed in.
-     * <p/>
+     * This implementation queues the removal notification for in order replication to peers.
+     *
      * @param cache   the cache emitting the notification
-     * @param element the element just deleted, or a synthetic element with just the key set if
-     *                no element was removed.
+     * @param element just deleted
      */
-    public final void notifyElementRemoved(final Ehcache cache, final Element element) throws CacheException {
-        if (notAlive()) {
-            return;
-        }
-
+    public final void notifyElementRemoved(final Cache cache, final Element element) throws CacheException {
         if (!replicateRemovals) {
             return;
         }
@@ -224,32 +214,6 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
         }
         addToReplicationQueue(new CacheEventMessage(EventMessage.REMOVE, cache, null, element.getKey()));
     }
-
-
-    /**
-     * Called during {@link net.sf.ehcache.Ehcache#removeAll()} to indicate that the all
-     * elements have been removed from the cache in a bulk operation. The usual
-     * {@link #notifyElementRemoved(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)}
-     * is not called.
-     * <p/>
-     * This notification exists because clearing a cache is a special case. It is often
-     * not practical to serially process notifications where potentially millions of elements
-     * have been bulk deleted.
-     *
-     * @param cache the cache emitting the notification
-     */
-    public void notifyRemoveAll(final Ehcache cache) {
-        if (notAlive()) {
-            return;
-        }
-
-        if (!replicateRemovals) {
-            return;
-        }
-
-        addToReplicationQueue(new CacheEventMessage(EventMessage.REMOVE_ALL, cache, null, null));
-    }
-
 
     /**
      * Adds a message to the queue.
@@ -272,7 +236,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
 
 
     /**
-     * Gets called once per {@link #asynchronousReplicationInterval}.
+     * Gets called once per {@link #REPLICATION_THREAD_INTERVAL}.
      * <p/>
      * Sends accumulated messages in bulk to each peer. i.e. if ther are 100 messages and 1 peer,
      * 1 RMI invocation results, not 100. Also, if a peer is unavailable this is discovered in only 1 try.
@@ -300,7 +264,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
         }
 
 
-        Ehcache cache = ((CacheEventMessage) replicationQueueCopy.get(0)).cache;
+        Cache cache = ((CacheEventMessage) replicationQueueCopy.get(0)).cache;
         List cachePeers = listRemoteCachePeers(cache);
 
         List resolvedEventMessages = extractAndResolveEventMessages(replicationQueueCopy);
@@ -336,9 +300,6 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
 
     /**
      * Extracts CacheEventMessages and attempts to get a hard reference to the underlying EventMessage
-     * <p/>
-     * If an EventMessage has been invalidated due to SoftReference collection of the Element, it is not
-     * propagated. This only affects puts and updates via copy.
      *
      * @param replicationQueueCopy
      * @return a list of EventMessages which were able to be resolved
@@ -347,7 +308,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
         List list = new ArrayList();
         for (int i = 0; i < replicationQueueCopy.size(); i++) {
             EventMessage eventMessage = ((CacheEventMessage) replicationQueueCopy.get(i)).getEventMessage();
-            if (eventMessage != null && eventMessage.isValid()) {
+            if (eventMessage != null) {
                 list.add(eventMessage);
             }
         }
@@ -365,28 +326,28 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
         }
 
         /**
-         * RemoteDebugger thread method.
+         * Main thread method.
          */
         public final void run() {
             replicationThreadMain();
         }
     }
 
-
     /**
-     * A wrapper around an EventMessage, which enables the element to be enqueued along with
+     * A wrapper around an EventMessage, which enables the element to enqueued along with
      * what is to be done with it.
      * <p/>
-     * The wrapper holds a {@link java.lang.ref.SoftReference} to the {@link EventMessage}, so that the queue is never
+     * The wrapper holds a {@link SoftReference} to the {@link EventMessage}, so that the queue is never
      * the cause of an {@link OutOfMemoryError}
      */
     private static final class CacheEventMessage {
 
-        private final Ehcache cache;
-        private final EventMessage eventMessage;
+        private final Cache cache;
+        private final SoftReference softEventMessage;
 
-        public CacheEventMessage(int event, Ehcache cache, Element element, Serializable key) {
-            eventMessage = new EventMessage(event, key, element);
+        public CacheEventMessage(int event, Cache cache, Element element, Serializable key) {
+            EventMessage eventMessage = new EventMessage(event, key, element);
+            softEventMessage = new SoftReference(eventMessage);
             this.cache = cache;
         }
 
@@ -394,7 +355,7 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
          * Gets the component EventMessage
          */
         public final EventMessage getEventMessage() {
-            return eventMessage;
+            return (EventMessage) softEventMessage.get();
         }
 
     }
@@ -408,23 +369,6 @@ public class RMIAsynchronousCacheReplicator extends RMISynchronousCacheReplicato
             replicationQueue.clear();
         }
 
-    }
-
-
-    /**
-     * Creates a clone of this listener. This method will only be called by ehcache before a cache is initialized.
-     * <p/>
-     * This may not be possible for listeners after they have been initialized. Implementations should throw
-     * CloneNotSupportedException if they do not support clone.
-     *
-     * @return a clone
-     * @throws CloneNotSupportedException if the listener could not be cloned.
-     */
-    public Object clone() throws CloneNotSupportedException {
-        //shutup checkstyle
-        super.clone();
-        return new RMIAsynchronousCacheReplicator(replicatePuts, replicateUpdates,
-                replicateUpdatesViaCopy, replicateRemovals, asynchronousReplicationInterval);
     }
 
 

@@ -16,7 +16,6 @@
 
 package net.sf.ehcache.distribution;
 
-import net.sf.ehcache.CacheManager;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -25,6 +24,8 @@ import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 import java.util.List;
+
+import net.sf.ehcache.CacheManager;
 
 /**
  * Sends heartbeats to a multicast group containing a compressed list of URLs. Supports up to approximately
@@ -37,17 +38,14 @@ public final class MulticastKeepaliveHeartbeatSender {
 
 
     private static final Log LOG = LogFactory.getLog(MulticastKeepaliveHeartbeatSender.class.getName());
-
-    private static final int DEFAULT_HEARTBEAT_INTERVAL = 5000;
-    private static final int MINIMUM_HEARTBEAT_INTERVAL = 1000;
-
-    private static long heartBeatInterval = DEFAULT_HEARTBEAT_INTERVAL;
+    private static final long HEARTBEAT_INTERVAL = 5000;
 
     private final InetAddress groupMulticastAddress;
     private final Integer groupMulticastPort;
     private MulticastServerThread serverThread;
     private boolean stopped;
     private final CacheManager cacheManager;
+
 
     /**
      * Constructor
@@ -111,7 +109,7 @@ public final class MulticastKeepaliveHeartbeatSender {
 
                     try {
                         synchronized (this) {
-                            wait(heartBeatInterval);
+                            wait(HEARTBEAT_INTERVAL);
                         }
                     } catch (InterruptedException e) {
                         if (!stopped) {
@@ -191,11 +189,11 @@ public final class MulticastKeepaliveHeartbeatSender {
 
         private void closeSocket() {
             try {
-                if (socket != null && !socket.isClosed()) {
+                if (!socket.isClosed()) {
                     try {
                         socket.leaveGroup(groupMulticastAddress);
                     } catch (IOException e) {
-                        LOG.error("Error leaving multicast group. Message was " + e.getMessage());
+                        LOG.error("Error leaving mutlicast group. Message was " + e.getMessage());
                     }
                     socket.close();
                 }
@@ -210,27 +208,5 @@ public final class MulticastKeepaliveHeartbeatSender {
             }
         }
 
-    }
-
-    /**
-     * Sets the heartbeat interval to something other than the default of 5000ms. This is useful for testing,
-     * but not recommended for production. This method is static and so affects the heartbeat interval of all
-     * senders. The change takes effect after the next scheduled heartbeat.
-     * @param heartBeatInterval a time in ms, greater than 1000
-     */
-    static void setHeartBeatInterval(long heartBeatInterval) {
-        if (heartBeatInterval < MINIMUM_HEARTBEAT_INTERVAL) {
-            LOG.warn("Trying to set heartbeat interval too low. Using MINIMUM_HEARTBEAT_INTERVAL instead.");
-            MulticastKeepaliveHeartbeatSender.heartBeatInterval = MINIMUM_HEARTBEAT_INTERVAL;
-        } else {
-            MulticastKeepaliveHeartbeatSender.heartBeatInterval = heartBeatInterval;
-        }
-    }
-
-    /**
-     * Returns the heartbeat interval.
-     */
-    public static long getHeartBeatInterval() {
-        return heartBeatInterval;
     }
 }

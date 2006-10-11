@@ -17,7 +17,7 @@
 package net.sf.ehcache.distribution;
 
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.Cache;
 
 import java.util.List;
 
@@ -44,7 +44,7 @@ public interface CacheManagerPeerProvider {
     /**
      * @return a list of {@link CachePeer} peers for the given cache, excluding the local peer.
      */
-    List listRemoteCachePeers(Ehcache cache) throws CacheException;
+    List listRemoteCachePeers(Cache cache) throws CacheException;
 
     /**
      * Notifies providers to initialise themselves.
@@ -59,9 +59,4 @@ public interface CacheManagerPeerProvider {
      */
     void dispose() throws CacheException;
 
-    /**
-     * Time for a cluster to form. This varies considerably, depending on the implementation.
-     * @return the time in ms, for a cluster to form
-     */
-    long getTimeForClusterToForm();
 }

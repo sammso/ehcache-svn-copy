@@ -1,4 +1,12 @@
-{Performance Considerations}
+ ------
+ Performance Considerations
+ ------
+ ------
+ Date
+ ------
+
+
+Performance Considerations
 
 * DiskStore
 
@@ -29,5 +37,3 @@
 
     * The messages are placed in a queue. As the queue is processed, multiple messages are sent in one RMI
       call, dramatically accelerating replication performance.
-
-

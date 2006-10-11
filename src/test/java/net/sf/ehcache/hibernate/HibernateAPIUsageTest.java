@@ -20,7 +20,6 @@ import net.sf.ehcache.AbstractCacheTest;
 import net.sf.ehcache.CacheTest;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.hibernate.cfg.Environment;
 
 import java.io.Serializable;
 import java.util.Map;
@@ -35,7 +34,6 @@ import java.util.Properties;
  */
 public class HibernateAPIUsageTest extends AbstractCacheTest {
     private static final Log LOG = LogFactory.getLog(CacheTest.class.getName());
-    private static final int EMPTY_ELEMENT_SIZE = 298;
 
 
     /**
@@ -66,18 +64,12 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
 
 
     /**
-     * Make sure ehcache works with one of the main projects using it: Hibernate-3.1.3 and Hibernate 3.2
-     * Note this test was updated to Hibernate3.2cr2 9 May 2006
-     * <p/>
-     * Note that getElementCountInMemory() is broken. It reports the total cache size rather than the memory size. Fixed in Hibernate 3.2
+     * Make sure ehcache works with one of the main projects using it: Hibernate-3.1.3
+     *
+     * Note that getElementCountInMemory() is broken. It reports the total cache size rather than the memory size
      * getTimeout appears to be broken. It returns 4096 minutes!
      */
     public void testAPIAsUsedByHibernate3() {
-
-        /*Shutdown cache manager so that hibernate can start one using the same cache.xml disk path
-          because it does not use the singleton CacheManager any more */
-        manager.shutdown();
-
         org.hibernate.cache.EhCacheProvider provider = new org.hibernate.cache.EhCacheProvider();
         provider.start(null);
         org.hibernate.cache.Cache cache = provider.buildCache("sampleCache1", null);
@@ -101,19 +93,20 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
         assertEquals(value, cache.get(key));
         cache.remove(key);
 
+
         //Check counts and stats
         for (int i = 0; i < 10010; i++) {
             cache.put("" + i, value);
         }
-        //this is now fixed
-        assertEquals(10000, cache.getElementCountInMemory());
+        //this is broken!
+        assertEquals(10010, cache.getElementCountInMemory());
         assertEquals(10, cache.getElementCountOnDisk());
 
         //clear
         cache.clear();
         assertEquals(0, cache.getElementCountInMemory());
         cache.put(key, value);
-        assertTrue(EMPTY_ELEMENT_SIZE == cache.getSizeInMemory());
+        assertTrue(213 == cache.getSizeInMemory());
 
         //locks
         //timeout. This seems strange
@@ -130,8 +123,6 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
         long time2 = cache.nextTimestamp();
         assertTrue(time2 > time1);
 
-        cache.clear();
-
         cache.destroy();
         try {
             cache.get(key);
@@ -140,118 +131,7 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
             //expected
         }
 
-        provider.stop();
-
     }
-
-
-    /**
-     * Test new features:
-     * <ol>
-     * <li>Support for Object signatures
-     * <li>support for multiple SessionFactory objects in Hibernate, which presumably mean multiple providers.
-     * We can have two caches of the same name in different providers and interact with both
-     * </ol>
-     */
-    public void testNewHibernate32CacheAndProviderNewFeatures() {
-
-        /*Shutdown cache manager so that hibernate can start one using the same cache.xml disk path
-          because it does not use the singleton CacheManager any more */
-        manager.shutdown();
-
-        org.hibernate.cache.EhCacheProvider provider = new org.hibernate.cache.EhCacheProvider();
-        provider.start(null);
-        org.hibernate.cache.Cache cache = provider.buildCache("sampleCache1", null);
-
-        //start up second provider pointing to ehcache-failsage.xml because it is there
-        org.hibernate.cache.EhCacheProvider provider2 = new org.hibernate.cache.EhCacheProvider();
-
-
-        //Fire up a second provider, CacheManager and cache concurrently
-        Properties properties = new Properties();
-
-        properties.setProperty(Environment.CACHE_PROVIDER_CONFIG, "ehcache-2.xml");
-        provider2.start(properties);
-        org.hibernate.cache.Cache cache2 = provider.buildCache("sampleCache1", null);
-
-        //Check created and name
-        assertNotNull(cache.getRegionName());
-        assertEquals("sampleCache1", cache.getRegionName());
-
-        //Test with Object rather than Serializable
-        Object key = new Object();
-        Object value = new Object();
-
-        cache.put(key, value);
-        assertEquals(value, cache.get(key));
-        assertEquals(value, cache.read(key));
-        cache2.put(key, value);
-        assertEquals(value, cache2.get(key));
-        assertEquals(value, cache2.read(key));
-
-        cache.remove(key);
-        assertEquals(null, cache.get(key));
-        cache2.remove(key);
-        assertEquals(null, cache2.get(key));
-
-        //Behaves like a put
-        cache.update(key, value);
-        assertEquals(value, cache.get(key));
-        cache.remove(key);
-        cache2.update(key, value);
-        assertEquals(value, cache2.get(key));
-        cache2.remove(key);
-
-        //Check counts and stats
-        for (int i = 0; i < 10010; i++) {
-            cache.put("" + i, value);
-        }
-        assertEquals(10000, cache.getElementCountInMemory());
-        //objects don't overflow, only Serializable
-        assertEquals(0, cache.getElementCountOnDisk());
-
-        //clear
-        cache.clear();
-        assertEquals(0, cache.getElementCountInMemory());
-        cache.put(key, value);
-        //Not Serializable therefore unmeasurable using ehcache's estimation algorithm
-        assertTrue(0 == cache.getSizeInMemory());
-
-        //locks
-        //timeout. This seems strange
-        assertEquals(245760000, cache.getTimeout());
-        cache.lock(key);
-        cache.unlock(key);
-
-        //toMap - broken in Hibernate 3.2
-//        Map map = cache.toMap();
-//        assertEquals(1, map.size());
-//        assertEquals(value, map.get(key));
-
-        long time1 = cache.nextTimestamp();
-        long time2 = cache.nextTimestamp();
-        assertTrue(time2 > time1);
-
-        cache.destroy();
-        try {
-            cache.get(key);
-            fail();
-        } catch (IllegalStateException e) {
-            //expected
-        }
-
-        cache2.destroy();
-        try {
-            cache2.get(key);
-            fail();
-        } catch (IllegalStateException e) {
-            //expected
-        }
-
-        provider.stop();
-        provider2.stop();
-    }
-
 
     /**
      * Test ehcache packaged provider and EhCache with Hibernate-3.1.3
@@ -286,6 +166,7 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
         assertEquals(value, cache.get(key));
         cache.remove(key);
 
+
         //Check counts and stats
         for (int i = 0; i < 10010; i++) {
             cache.put("" + i, value);
@@ -297,7 +178,7 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
         cache.clear();
         assertEquals(0, cache.getElementCountInMemory());
         cache.put(key, value);
-        assertTrue(EMPTY_ELEMENT_SIZE == cache.getSizeInMemory());
+        assertTrue(213 == cache.getSizeInMemory());
 
         //locks
         //timeout. This seems strange
@@ -330,13 +211,14 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
     /**
      * Test ehcache packaged provider and EhCache with Hibernate-3.1.3
      * Leave broken timeout until get clarification from Emmanuel
-     * <p/>
+     *
      * Test new features:
      * <ol>
      * <li>Support for Object signatures
      * <li>support for multiple SessionFactory objects in Hibernate, which presumably mean multiple providers.
      * We can have two caches of the same name in different providers and interact with both
      * </ol>
+     *
      */
     public void testNewHibernateEhcacheAndProviderNewFeatures() {
 
@@ -356,108 +238,6 @@ public class HibernateAPIUsageTest extends AbstractCacheTest {
         properties.setProperty(EhCacheProvider.NET_SF_EHCACHE_CONFIGURATION_RESOURCE_NAME, "ehcache-2.xml");
         provider2.start(properties);
         org.hibernate.cache.Cache cache2 = provider.buildCache("sampleCache1", null);
-
-        //Check created and name
-        assertNotNull(cache.getRegionName());
-        assertEquals("sampleCache1", cache.getRegionName());
-
-        //Test with Object rather than Serializable
-        Object key = new Object();
-        Object value = new Object();
-
-        cache.put(key, value);
-        assertEquals(value, cache.get(key));
-        assertEquals(value, cache.read(key));
-        cache2.put(key, value);
-        assertEquals(value, cache2.get(key));
-        assertEquals(value, cache2.read(key));
-
-        cache.remove(key);
-        assertEquals(null, cache.get(key));
-        cache2.remove(key);
-        assertEquals(null, cache2.get(key));
-
-        //Behaves like a put
-        cache.update(key, value);
-        assertEquals(value, cache.get(key));
-        cache.remove(key);
-        cache2.update(key, value);
-        assertEquals(value, cache2.get(key));
-        cache2.remove(key);
-
-        //Check counts and stats
-        for (int i = 0; i < 10010; i++) {
-            cache.put("" + i, value);
-        }
-        assertEquals(10000, cache.getElementCountInMemory());
-        //objects don't overflow, only Serializable
-        assertEquals(0, cache.getElementCountOnDisk());
-
-        //clear
-        cache.clear();
-        assertEquals(0, cache.getElementCountInMemory());
-        cache.put(key, value);
-        //Not Serializable therefore unmeasurable using ehcache's estimation algorithm
-        assertTrue(0 == cache.getSizeInMemory());
-
-        //locks
-        //timeout. This seems strange
-        assertEquals(245760000, cache.getTimeout());
-        cache.lock(key);
-        cache.unlock(key);
-
-        //toMap
-        Map map = cache.toMap();
-        assertEquals(1, map.size());
-        assertEquals(value, map.get(key));
-
-        long time1 = cache.nextTimestamp();
-        long time2 = cache.nextTimestamp();
-        assertTrue(time2 > time1);
-
-        cache.destroy();
-        try {
-            cache.get(key);
-            fail();
-        } catch (IllegalStateException e) {
-            //expected
-        }
-
-        cache2.destroy();
-        try {
-            cache2.get(key);
-            fail();
-        } catch (IllegalStateException e) {
-            //expected
-        }
-
-        ((net.sf.ehcache.hibernate.EhCache) cache).getBackingCache().getCacheManager().shutdown();
-    }
-
-    /**
-     * Test ehcache packaged provider and EhCache with Hibernate-3.1.3
-     * Leave broken timeout until get clarification from Emmanuel
-     * <p/>
-     * Test new features:
-     * <ol>
-     * <li>Support for Object signatures
-     * </ol>
-     */
-    public void testNewHibernateSingletonEhcacheAndProviderNewFeatures() {
-
-        /*Shutdown cache manager so that hibernate can start one using the same cache.xml disk path
-          because it does not use the singleton CacheManager any more */
-        manager.shutdown();
-
-        net.sf.ehcache.hibernate.SingletonEhCacheProvider provider = new net.sf.ehcache.hibernate.SingletonEhCacheProvider();
-        provider.start(null);
-        org.hibernate.cache.Cache cache = provider.buildCache("sampleCache1", null);
-
-        net.sf.ehcache.hibernate.SingletonEhCacheProvider provider2 = new net.sf.ehcache.hibernate.SingletonEhCacheProvider();
-        provider.start(null);
-        org.hibernate.cache.Cache cache2 = provider.buildCache("sampleCache1", null);
-
-//        assertTrue(cache == cache2);
 
         //Check created and name
         assertNotNull(cache.getRegionName());

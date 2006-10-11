@@ -17,17 +17,12 @@
 package net.sf.ehcache;
 
 import junit.framework.TestCase;
-import net.sf.ehcache.bootstrap.BootstrapCacheLoader;
 import net.sf.ehcache.config.CacheConfiguration;
 import net.sf.ehcache.config.Configuration;
 import net.sf.ehcache.config.ConfigurationFactory;
 import net.sf.ehcache.config.DiskStoreConfiguration;
-import net.sf.ehcache.distribution.RMIBootstrapCacheLoader;
 import net.sf.ehcache.event.RegisteredEventListeners;
 import net.sf.ehcache.store.DiskStore;
-import net.sf.ehcache.constructs.blocking.BlockingCache;
-import net.sf.ehcache.constructs.blocking.SelfPopulatingCache;
-import net.sf.ehcache.constructs.blocking.CountingCacheEntryFactory;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -57,23 +52,14 @@ public class CacheManagerTest extends TestCase {
     protected CacheManager instanceManager;
 
     /**
-     * Shutdown managers.
-     * Check that the manager is removed from CacheManager.ALL_CACHE_MANAGERS
+     * Shutdown managers and check for thread leak.
      */
     protected void tearDown() throws Exception {
         if (singletonManager != null) {
-            if (singletonManager.getStatus().equals(Status.STATUS_ALIVE)) {
-                assertTrue(CacheManager.ALL_CACHE_MANAGERS.contains(singletonManager));
-            }
             singletonManager.shutdown();
-            assertFalse(CacheManager.ALL_CACHE_MANAGERS.contains(singletonManager));
         }
         if (instanceManager != null) {
-            if (instanceManager.getStatus().equals(Status.STATUS_ALIVE)) {
-                assertTrue(CacheManager.ALL_CACHE_MANAGERS.contains(instanceManager));
-            }
             instanceManager.shutdown();
-            assertFalse(CacheManager.ALL_CACHE_MANAGERS.contains(instanceManager));
         }
     }
 
@@ -84,7 +70,7 @@ public class CacheManagerTest extends TestCase {
     public void testCreateCacheManager() throws CacheException {
         singletonManager = CacheManager.create();
         assertNotNull(singletonManager);
-        assertEquals(12, singletonManager.getCacheNames().length);
+        assertTrue(singletonManager.getCacheNames().length == 8);
     }
 
     /**
@@ -93,7 +79,7 @@ public class CacheManagerTest extends TestCase {
     public void testCreateCacheManagerFromFile() throws CacheException {
         singletonManager = CacheManager.create(AbstractCacheTest.SRC_CONFIG_DIR + "ehcache.xml");
         assertNotNull(singletonManager);
-        assertEquals(6, singletonManager.getCacheNames().length);
+        assertEquals(5, singletonManager.getCacheNames().length);
     }
 
     /**
@@ -104,7 +90,7 @@ public class CacheManagerTest extends TestCase {
         Configuration configuration = ConfigurationFactory.parseConfiguration(file);
         CacheManager manager = new CacheManager(configuration);
         assertNotNull(manager);
-        assertEquals(6, manager.getCacheNames().length);
+        assertEquals(5, manager.getCacheNames().length);
         manager.shutdown();
     }
 
@@ -119,7 +105,7 @@ public class CacheManagerTest extends TestCase {
             fis.close();
         }
         assertNotNull(singletonManager);
-        assertEquals(6, singletonManager.getCacheNames().length);
+        assertEquals(5, singletonManager.getCacheNames().length);
     }
 
     /**
@@ -129,28 +115,12 @@ public class CacheManagerTest extends TestCase {
         URL secondCacheConfiguration = this.getClass().getResource("/ehcache-2.xml");
 
         singletonManager = CacheManager.create(secondCacheConfiguration);
-        instanceManager = new CacheManager(secondCacheConfiguration);
-
-        String intialDiskStorePath = System.getProperty("java.io.tmpdir") + File.separator + "second";
-
-        File diskStorePathDir = new File(intialDiskStorePath);
-        File[] files = diskStorePathDir.listFiles();
-        File newDiskStorePath = null;
-        boolean newDiskStorePathFound = false;
-        for (int i = 0; i < files.length; i++) {
-            File file = files[i];
-            if (file.isDirectory()) {
-                if (file.getName().indexOf(DiskStore.AUTO_DISK_PATH_DIRECTORY_PREFIX) != -1) {
-                    newDiskStorePathFound = true;
-                    newDiskStorePath = file;
-                    break;
-                }
-            }
+        try {
+            instanceManager = new CacheManager(secondCacheConfiguration);
+            fail();
+        } catch (CacheException e) {
+            //expected
         }
-        assertTrue(newDiskStorePathFound);
-        newDiskStorePath.delete();
-
-
     }
 
     /**
@@ -176,40 +146,6 @@ public class CacheManagerTest extends TestCase {
 
         //Try shutting and recreating a new instance cache manager
         instanceManager = new CacheManager(secondCacheConfiguration);
-        instanceManager.getCache("sampleCache1").put(element2);
-        CacheManager.getInstance().shutdown();
-        assertEquals(element2, instanceManager.getCache("sampleCache1").get(2 + ""));
-
-        //Try shutting and recreating the singleton cache manager
-        CacheManager.getInstance().getCache("sampleCache1").put(element2);
-        assertNull(CacheManager.getInstance().getCache("sampleCache1").get(1 + ""));
-        assertEquals(element2, CacheManager.getInstance().getCache("sampleCache1").get(2 + ""));
-    }
-
-    /**
-     * Tests that two CacheManagers were successfully created
-     */
-    public void testTwoCacheManagersWithSameConfiguration() throws CacheException {
-        Element element1 = new Element(1 + "", new Date());
-        Element element2 = new Element(2 + "", new Date());
-
-
-        String fileName = AbstractCacheTest.TEST_CONFIG_DIR + "ehcache.xml";
-        CacheManager.create(fileName).getCache("sampleCache1").put(element1);
-
-        //Check can start second one with the same config
-        instanceManager = new CacheManager(fileName);
-        instanceManager.getCache("sampleCache1").put(element2);
-
-        assertEquals(element1, CacheManager.getInstance().getCache("sampleCache1").get(1 + ""));
-        assertEquals(element2, instanceManager.getCache("sampleCache1").get(2 + ""));
-
-        //shutting down instance should leave singleton unaffected
-        instanceManager.shutdown();
-        assertEquals(element1, CacheManager.getInstance().getCache("sampleCache1").get(1 + ""));
-
-        //Try shutting and recreating a new instance cache manager
-        instanceManager = new CacheManager(fileName);
         instanceManager.getCache("sampleCache1").put(element2);
         CacheManager.getInstance().shutdown();
         assertEquals(element2, instanceManager.getCache("sampleCache1").get(2 + ""));
@@ -254,12 +190,12 @@ public class CacheManagerTest extends TestCase {
         instanceManager.shutdown();
 
         //shutting down instance should leave singleton ok
-        assertEquals(12, singletonManager.getCacheNames().length);
+        assertTrue(singletonManager.getCacheNames().length == 8);
 
 
         instanceManager = new CacheManager(secondCacheConfiguration);
         assertNotNull(instanceManager);
-        assertEquals(8, instanceManager.getCacheNames().length);
+        assertTrue(instanceManager.getCacheNames().length == 8);
 
 
     }
@@ -308,7 +244,7 @@ public class CacheManagerTest extends TestCase {
      */
     public void testGetCache() throws CacheException {
         instanceManager = CacheManager.create();
-        Ehcache cache = instanceManager.getCache("sampleCache1");
+        Cache cache = instanceManager.getCache("sampleCache1");
         assertNotNull(cache);
     }
 
@@ -318,7 +254,7 @@ public class CacheManagerTest extends TestCase {
     public void testCacheManagerReferenceInstance() {
         instanceManager = new CacheManager();
         instanceManager.addCache("test");
-        Ehcache cache = instanceManager.getCache("test");
+        Cache cache = instanceManager.getCache("test");
         assertEquals("test", cache.getName());
         assertEquals(Status.STATUS_ALIVE, cache.getStatus());
         CacheManager reference = cache.getCacheManager();
@@ -331,7 +267,7 @@ public class CacheManagerTest extends TestCase {
     public void testCacheManagerReferenceSingleton() {
         singletonManager = CacheManager.create();
         singletonManager.addCache("test");
-        Ehcache cache = singletonManager.getCache("test");
+        Cache cache = singletonManager.getCache("test");
         assertEquals("test", cache.getName());
         assertEquals(Status.STATUS_ALIVE, cache.getStatus());
         CacheManager reference = cache.getCacheManager();
@@ -345,7 +281,7 @@ public class CacheManagerTest extends TestCase {
         System.setProperty(Cache.NET_SF_EHCACHE_DISABLED, "true");
         Thread.sleep(1000);
         instanceManager = CacheManager.create();
-        Ehcache cache = instanceManager.getCache("sampleCache1");
+        Cache cache = instanceManager.getCache("sampleCache1");
         assertNotNull(cache);
         cache.put(new Element("key123", "value"));
         Element element = cache.get("key123");
@@ -382,7 +318,7 @@ public class CacheManagerTest extends TestCase {
         //check we can recreate the CacheManager on demand.
         singletonManager = CacheManager.create();
         assertNotNull(singletonManager);
-        assertEquals(12, singletonManager.getCacheNames().length);
+        assertTrue(singletonManager.getCacheNames().length == 8);
         assertEquals(Status.STATUS_ALIVE, singletonManager.getStatus());
 
         singletonManager.shutdown();
@@ -394,7 +330,7 @@ public class CacheManagerTest extends TestCase {
      */
     public void testRemoveCache() throws CacheException {
         singletonManager = CacheManager.create();
-        Ehcache cache = singletonManager.getCache("sampleCache1");
+        Cache cache = singletonManager.getCache("sampleCache1");
         assertNotNull(cache);
         singletonManager.removeCache("sampleCache1");
         cache = singletonManager.getCache("sampleCache1");
@@ -411,7 +347,7 @@ public class CacheManagerTest extends TestCase {
     public void testAddCache() throws CacheException {
         singletonManager = CacheManager.create();
         singletonManager.addCache("test");
-        Ehcache cache = singletonManager.getCache("test");
+        Cache cache = singletonManager.getCache("test");
         assertNotNull(cache);
         assertEquals("test", cache.getName());
         String[] cacheNames = singletonManager.getCacheNames();
@@ -451,36 +387,12 @@ public class CacheManagerTest extends TestCase {
     }
 
     /**
-     * Do bootstrap cache loaders work ok when created from the default cache?
-     */
-    public void testCachesCreatedFromDefaultWithBootstrapSet() {
-        singletonManager = CacheManager.create(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed1.xml");
-        singletonManager.addCache("newfromdefault1");
-        Cache newfromdefault1 = singletonManager.getCache("newfromdefault1");
-        singletonManager.addCache("newfromdefault2");
-        Cache newfromdefault2 = singletonManager.getCache("newfromdefault2");
-
-        assertTrue(newfromdefault1 != newfromdefault2);
-
-        BootstrapCacheLoader bootstrapCacheLoader1 = ((Cache) newfromdefault1).getBootstrapCacheLoader();
-        BootstrapCacheLoader bootstrapCacheLoader2 = ((Cache) newfromdefault2).getBootstrapCacheLoader();
-
-        assertTrue(bootstrapCacheLoader1 != bootstrapCacheLoader2);
-
-        assertNotNull(bootstrapCacheLoader1);
-        assertEquals(RMIBootstrapCacheLoader.class, bootstrapCacheLoader1.getClass());
-        assertEquals(true, bootstrapCacheLoader1.isAsynchronous());
-        assertEquals(5000000, ((RMIBootstrapCacheLoader) bootstrapCacheLoader1).getMaximumChunkSizeBytes());
-
-    }
-
-    /**
      * Test using a cache which has been removed and replaced.
      */
     public void testStaleCacheReference() throws CacheException {
         singletonManager = CacheManager.create();
         singletonManager.addCache("test");
-        Ehcache cache = singletonManager.getCache("test");
+        Cache cache = singletonManager.getCache("test");
         assertNotNull(cache);
         cache.put(new Element("key1", "value1"));
 
@@ -509,7 +421,7 @@ public class CacheManagerTest extends TestCase {
         String[] names = singletonManager.getCacheNames();
         for (int i = 0; i < names.length; i++) {
             String name = names[i];
-            Ehcache cache = singletonManager.getCache(name);
+            Cache cache = singletonManager.getCache(name);
             for (int j = 0; i < 100; i++) {
                 cache.put(new Element(new Integer(j), "value"));
             }
@@ -518,7 +430,7 @@ public class CacheManagerTest extends TestCase {
         for (int repeats = 0; repeats < 5000; repeats++) {
             for (int i = 0; i < names.length; i++) {
                 String name = names[i];
-                Ehcache cache = singletonManager.getCache(name);
+                Cache cache = singletonManager.getCache(name);
                 for (int j = 0; i < 100; i++) {
                     Element element = cache.get(name + j);
                     if ((element == null)) {
@@ -534,9 +446,9 @@ public class CacheManagerTest extends TestCase {
 
     private int countThreads() {
 
-/**
- * A class for visiting threads
- */
+        /**
+         * A class for visiting threads
+         */
         class ThreadVisitor {
 
             private int threadCount;
@@ -584,61 +496,5 @@ public class CacheManagerTest extends TestCase {
 
     }
 
-
-    /**
-     * Shows that a decorated cache can be substituted
-     */
-    public void testDecoratorRequiresDecoratedCache() {
-
-        singletonManager = CacheManager.create();
-        Ehcache cache = singletonManager.getEhcache("sampleCache1");
-        //decorate and substitute
-        BlockingCache newBlockingCache = new BlockingCache(cache);
-        singletonManager.replaceCacheWithDecoratedCache(cache, newBlockingCache);
-        Ehcache blockingCache = singletonManager.getEhcache("sampleCache1");
-        blockingCache.get("unknownkey");
-    }
-
-
-
-
-    /**
-     * Shows that a decorated cache can be substituted
-     */
-    public void testDecoratorFailsIfUnderlyingCacheNotSame() {
-
-        singletonManager = CacheManager.create();
-        Ehcache cache = singletonManager.getEhcache("sampleCache1");
-        Ehcache cache2 = singletonManager.getEhcache("sampleCache2");
-        //decorate and substitute
-        BlockingCache newBlockingCache = new BlockingCache(cache2);
-        try {
-            singletonManager.replaceCacheWithDecoratedCache(cache, newBlockingCache);
-        } catch (CacheException e) {
-            //expected
-        }
-    }
-
-    /**
-     * Shows that a decorated cache has decorated behaviour for methods that override Cache methods, without
-     * requiring a cast.
-     */
-    public void testDecoratorOverridesDefaultBehaviour() {
-
-        singletonManager = CacheManager.create();
-        Ehcache cache = singletonManager.getEhcache("sampleCache1");
-        Element element = cache.get("key");
-        //default behaviour for a missing key
-        assertNull(element);
-
-        //decorate and substitute
-        SelfPopulatingCache selfPopulatingCache = new SelfPopulatingCache(cache, new CountingCacheEntryFactory("value"));
-        selfPopulatingCache.get("key");
-        singletonManager.replaceCacheWithDecoratedCache(cache, selfPopulatingCache);
-
-        Ehcache decoratedCache = singletonManager.getEhcache("sampleCache1");
-        Element element2 = cache.get("key");
-        assertEquals("value", element2.getObjectValue());
-    }
 
 }

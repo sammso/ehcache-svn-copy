@@ -17,16 +17,16 @@
 package net.sf.ehcache.distribution;
 
 import junit.framework.TestCase;
-import net.sf.ehcache.AbstractCacheTest;
 import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.StopWatch;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import net.sf.ehcache.AbstractCacheTest;
 
-import java.rmi.RemoteException;
 import java.util.List;
+import java.rmi.RemoteException;
+
+import org.apache.commons.logging.LogFactory;
+import org.apache.commons.logging.Log;
 
 /**
  * Multicast tests. These require special machine configuration.
@@ -65,13 +65,12 @@ public class MulticastRMIPeerProviderTest extends TestCase {
         if (JVMUtil.isSingleRMIRegistryPerVM()) {
             return;
         }
-        MulticastKeepaliveHeartbeatSender.setHeartBeatInterval(1000);
         manager1 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed1.xml");
         manager2 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed2.xml");
         manager3 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR + "distribution/ehcache-distributed3.xml");
 
         //wait for cluster to establish
-        Thread.sleep(2000);
+        Thread.sleep(6000);
     }
 
     /**
@@ -85,17 +84,9 @@ public class MulticastRMIPeerProviderTest extends TestCase {
 
         manager1.shutdown();
         manager2.shutdown();
-        manager3.shutdown();
-    }
-
-    /**
-     * Make sure no exceptions get logged. Manual inspection.
-     */
-    public void testSolePeer() throws Exception {
-        tearDown();
-
-        manager1 = new CacheManager(AbstractCacheTest.TEST_CONFIG_DIR
-                + "distribution/ehcache-distributed-no-caches-replicating.xml");
+        if (manager3 != null) {
+            manager3.shutdown();
+        }
     }
 
     /**
@@ -107,94 +98,17 @@ public class MulticastRMIPeerProviderTest extends TestCase {
             return;
         }
 
-        Ehcache m1sampleCache1 = manager1.getCache("sampleCache1");
+        Cache m1sampleCache1 = manager1.getCache("sampleCache1");
         Thread.sleep(2000);
 
         List peerUrls = manager1.getCachePeerProvider().listRemoteCachePeers(m1sampleCache1);
         assertEquals(expectedPeers(), peerUrls.size());
 
-        Ehcache m2sampleCache1 = manager2.getCache("sampleCache1");
+        Cache m2sampleCache1 = manager2.getCache("sampleCache1");
         assertFalse(m1sampleCache1.getGuid().equals(m2sampleCache1.getGuid()));
 
         List peerUrls2 = manager2.getCachePeerProvider().listRemoteCachePeers(m2sampleCache1);
         assertEquals(expectedPeers(), peerUrls2.size());
-
-        Ehcache m3sampleCache1 = manager3.getCache("sampleCache1");
-        assertFalse(m1sampleCache1.getGuid().equals(m3sampleCache1.getGuid()));
-
-        List peerUrls3 = manager3.getCachePeerProvider().listRemoteCachePeers(m3sampleCache1);
-        assertEquals(expectedPeers(), peerUrls3.size());
-    }
-
-    /**
-     * The default caches for ehcache-dsitributed1-6.xml are set to replicate.
-     * We create a new cache from the default and expect it to be replicated.
-     */
-    public void testProviderCreatedFromDefaultCache() throws InterruptedException {
-
-        if (JVMUtil.isSingleRMIRegistryPerVM()) {
-            return;
-        }
-
-        //manual does not nor should it work this way
-        if (this.getClass() != MulticastRMIPeerProviderTest.class) {
-            return;
-        }
-
-        manager1.addCache("fromDefaultCache");
-        RMICacheManagerPeerListener peerListener1 = (RMICacheManagerPeerListener) manager1.getCachePeerListener();
-        //peerListener1.notifyCacheAdded("fromDefaultCache");
-        manager2.addCache("fromDefaultCache");
-        RMICacheManagerPeerListener peerListener2 = (RMICacheManagerPeerListener) manager2.getCachePeerListener();
-        //peerListener2.notifyCacheAdded("fromDefaultCache");
-        manager3.addCache("fromDefaultCache");
-        RMICacheManagerPeerListener peerListener3 = (RMICacheManagerPeerListener) manager3.getCachePeerListener();
-        //peerListener3.notifyCacheAdded("fromDefaultCache");
-        Thread.sleep(2000);
-
-        CacheManagerPeerProvider cachePeerProvider = manager1.getCachePeerProvider();
-
-        Cache cache = manager1.getCache("fromDefaultCache");
-        List peerUrls = cachePeerProvider.listRemoteCachePeers(cache);
-        assertEquals(expectedPeers(), peerUrls.size());
-
-    }
-
-
-    /**
-     * The default caches for ehcache-dsitributed1-6.xml are set to replicate.
-     * We create a new cache from the default and expect it to be replicated.
-     */
-    public void testDeleteReplicatedCache() throws InterruptedException {
-
-        if (JVMUtil.isSingleRMIRegistryPerVM()) {
-            return;
-        }
-
-        //manual does not nor should it work this way
-        if (this.getClass() != MulticastRMIPeerProviderTest.class) {
-            return;
-        }
-
-        manager1.addCache("fromDefaultCache");
-        manager2.addCache("fromDefaultCache");
-        manager3.addCache("fromDefaultCache");
-        Thread.sleep(2200);
-
-        CacheManagerPeerProvider cachePeerProvider = manager1.getCachePeerProvider();
-        Cache cache = manager1.getCache("fromDefaultCache");
-
-        //Should be three
-        List peerUrls = cachePeerProvider.listRemoteCachePeers(cache);
-        assertEquals(expectedPeers(), peerUrls.size());
-
-
-        manager1.removeCache("fromDefaultCache");
-        Thread.sleep(2200);
-
-        peerUrls = cachePeerProvider.listRemoteCachePeers(cache);
-        assertEquals(expectedPeers(), peerUrls.size());
-
     }
 
     /**
@@ -218,7 +132,7 @@ public class MulticastRMIPeerProviderTest extends TestCase {
             return;
         }
 
-        Ehcache m1sampleCache1 = manager1.getCache("sampleCache1");
+        Cache m1sampleCache1 = manager1.getCache("sampleCache1");
         Thread.sleep(2000);
         List peerUrls = manager1.getCachePeerProvider().listRemoteCachePeers(m1sampleCache1);
 

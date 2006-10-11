@@ -1,5 +1,4 @@
-<ehcache xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../../main/config/ehcache.xsd">
-
+<ehcache>
 
     <!-- Sets the path to the directory where cache .data files are created.
 
@@ -75,7 +74,7 @@
 
     -->
     <cacheManagerPeerListenerFactory class="net.sf.ehcache.distribution.RMICacheManagerPeerListenerFactory"
-                                     properties="hostName=, port=, socketTimeoutMillis=120000"/>
+                                     properties="hostName=, port=40004, socketTimeoutMillis=120000"/>
 
 
     <!--Default Cache configuration. These will applied to caches programmatically created through
@@ -113,16 +112,10 @@
     <defaultCache
             maxElementsInMemory="10"
             eternal="false"
-            timeToIdleSeconds="100"
-            timeToLiveSeconds="100"
-            overflowToDisk="true">
-        <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
-                                   properties="replicateAsynchronously=true,
-                                               replicatePuts=true,
-                                               replicateUpdates=true,
-                                               replicateUpdatesViaCopy=true,
-                                               replicateRemovals=true "/>
-    </defaultCache>
+            timeToIdleSeconds="5"
+            timeToLiveSeconds="10"
+            overflowToDisk="true"
+            />
 
 
     <!--Predefined caches.  Add your cache configuration settings here.
@@ -176,7 +169,7 @@
         <cacheEventListenerFactory class="net.sf.ehcache.event.CountingCacheEventListenerFactory"/>
     </cache>
 
-    <!-- Sample cache named sampleCache2. This one has a 10ms cache replication interval. -->
+    <!-- Sample cache named sampleCache2. -->
     <cache name="sampleCache2"
            maxElementsInMemory="10"
            eternal="false"
@@ -184,12 +177,7 @@
            timeToLiveSeconds="100"
            overflowToDisk="false">
         <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
-                                   properties="replicateAsynchronously=true,
-                                    replicatePuts=true,
-                                    replicateUpdates=true,
-                                    replicateUpdatesViaCopy=false,
-                                    replicateRemovals=true,
-                                    asynchronousReplicationIntervalMillis=10"/>
+                                   properties="replicateAsynchronously=true, replicatePuts=true, replicateUpdates=true, replicateUpdatesViaCopy=false, replicateRemovals=true "/>
     </cache>
 
 

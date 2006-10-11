@@ -35,7 +35,7 @@ import java.util.Properties;
  * @author Greg Luck
  * @version $Id$
  */
-public class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListenerFactory {
+public final class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListenerFactory {
 
     /**
      * The default timeout for cache replication for a single replication action.
@@ -55,12 +55,7 @@ public class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListener
             throws CacheException {
         String hostName = PropertyUtil.extractAndLogProperty(HOSTNAME, properties);
         String portString = PropertyUtil.extractAndLogProperty(PORT, properties);
-        Integer port = null;
-        if (portString != null && portString.length() != 0) {
-            port = new Integer(portString);
-        } else {
-            port = new Integer(0);
-        }
+        Integer port = new Integer(portString);
         String socketTimeoutMillisString = PropertyUtil.extractAndLogProperty(SOCKET_TIMEOUT_MILLIS, properties);
         Integer socketTimeoutMillis;
         if (socketTimeoutMillisString == null || socketTimeoutMillisString.length() == 0) {
@@ -68,19 +63,6 @@ public class RMICacheManagerPeerListenerFactory extends CacheManagerPeerListener
         } else {
             socketTimeoutMillis = new Integer(socketTimeoutMillisString);
         }
-        return doCreateCachePeerListener(hostName, port, cacheManager, socketTimeoutMillis);
-    }
-
-    /**
-     * A template method to actually create the factory
-     * @param hostName
-     * @param port
-     * @param cacheManager
-     * @param socketTimeoutMillis
-     * @return a crate CacheManagerPeerListener
-     */
-    protected CacheManagerPeerListener doCreateCachePeerListener(String hostName, Integer port, CacheManager cacheManager,
-                                                                 Integer socketTimeoutMillis) {
         try {
             return new RMICacheManagerPeerListener(hostName, port, cacheManager, socketTimeoutMillis);
         } catch (UnknownHostException e) {

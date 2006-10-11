@@ -16,14 +16,14 @@
 
 package net.sf.ehcache.event;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.Collections;
 
 /**
  * Counts listener notifications.
@@ -39,14 +39,12 @@ public class CountingCacheEventListener implements CacheEventListener {
     private static final List CACHE_ELEMENTS_UPDATED = Collections.synchronizedList(new ArrayList());
     private static final List CACHE_ELEMENTS_REMOVED = Collections.synchronizedList(new ArrayList());
     private static final List CACHE_ELEMENTS_EXPIRED = Collections.synchronizedList(new ArrayList());
-    private static final List CACHE_ELEMENTS_EVICTED = Collections.synchronizedList(new ArrayList());
-    private static final List CACHE_REMOVE_ALLS = Collections.synchronizedList(new ArrayList());
 
 
     /**
      * Accessor
      */
-    public static List getCacheElementsRemoved(Ehcache cache) {
+    public static List getCacheElementsRemoved(Cache cache) {
         return extractListForGivenCache(CACHE_ELEMENTS_REMOVED, cache);
     }
 
@@ -54,39 +52,23 @@ public class CountingCacheEventListener implements CacheEventListener {
     /**
      * Accessor
      */
-    public static List getCacheElementsPut(Ehcache cache) {
+    public static List getCacheElementsPut(Cache cache) {
         return extractListForGivenCache(CACHE_ELEMENTS_PUT, cache);
     }
 
     /**
      * Accessor
      */
-    public static List getCacheElementsUpdated(Ehcache cache) {
+    public static List getCacheElementsUpdated(Cache cache) {
         return extractListForGivenCache(CACHE_ELEMENTS_UPDATED, cache);
     }
 
     /**
      * Accessor
      */
-    public static List getCacheElementsExpired(Ehcache cache) {
+    public static List getCacheElementsExpired(Cache cache) {
         return extractListForGivenCache(CACHE_ELEMENTS_EXPIRED, cache);
     }
-
-    /**
-     * Accessor
-     */
-    public static List getCacheElementsEvicted(Ehcache cache) {
-        return extractListForGivenCache(CACHE_ELEMENTS_EVICTED, cache);
-    }
-
-    /**
-     * Accessor
-     */
-    public static List getCacheRemoveAlls(Ehcache cache) {
-        return extractListForGivenCache(CACHE_REMOVE_ALLS, cache);
-    }
-
-
 
     /**
      * Resets the counters to 0
@@ -104,12 +86,6 @@ public class CountingCacheEventListener implements CacheEventListener {
         synchronized (CACHE_ELEMENTS_EXPIRED) {
             CACHE_ELEMENTS_EXPIRED.clear();
         }
-        synchronized (CACHE_ELEMENTS_EVICTED) {
-            CACHE_ELEMENTS_EVICTED.clear();
-        }
-        synchronized (CACHE_REMOVE_ALLS) {
-            CACHE_REMOVE_ALLS.clear();
-        }
     }
 
 
@@ -118,7 +94,7 @@ public class CountingCacheEventListener implements CacheEventListener {
      * @param cache            the cache to filter on. If null, there is not filtering and all entries are returned.
      * @return a list of notifications for the cache
      */
-    private static List extractListForGivenCache(List notificationList, Ehcache cache) {
+    private static List extractListForGivenCache(List notificationList, Cache cache) {
         ArrayList list = new ArrayList();
         synchronized (notificationList) {
             for (int i = 0; i < notificationList.size(); i++) {
@@ -137,7 +113,7 @@ public class CountingCacheEventListener implements CacheEventListener {
     /**
      * {@inheritDoc}
      */
-    public void notifyElementRemoved(final Ehcache cache, final Element element) {
+    public void notifyElementRemoved(final Cache cache, final Element element) {
         checkSynchronizedAccessToCacheOk(cache);
         CACHE_ELEMENTS_REMOVED.add(new CounterEntry(cache, element));
     }
@@ -152,7 +128,7 @@ public class CountingCacheEventListener implements CacheEventListener {
      * @param cache
      * @param element the element which was just put into the cache.
      */
-    public void notifyElementPut(final Ehcache cache, final Element element) {
+    public void notifyElementPut(final Cache cache, final Element element) {
         checkSynchronizedAccessToCacheOk(cache);
         CACHE_ELEMENTS_PUT.add(new CounterEntry(cache, element));
     }
@@ -171,30 +147,15 @@ public class CountingCacheEventListener implements CacheEventListener {
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public void notifyElementUpdated(final Ehcache cache, final Element element) throws CacheException {
+    public void notifyElementUpdated(final Cache cache, final Element element) throws CacheException {
         CACHE_ELEMENTS_UPDATED.add(new CounterEntry(cache, element));
     }
 
     /**
      * {@inheritDoc}
      */
-    public void notifyElementExpired(final Ehcache cache, final Element element) {
+    public void notifyElementExpired(final Cache cache, final Element element) {
         CACHE_ELEMENTS_EXPIRED.add(new CounterEntry(cache, element));
-    }
-
-
-    /**
-     * {@inheritDoc}
-     */
-    public void notifyElementEvicted(final Ehcache cache, final Element element) {
-        CACHE_ELEMENTS_EVICTED.add(new CounterEntry(cache, element));
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void notifyRemoveAll(final Ehcache cache) {
-        CACHE_REMOVE_ALLS.add(new CounterEntry(cache, null));
     }
 
     /**
@@ -212,7 +173,7 @@ public class CountingCacheEventListener implements CacheEventListener {
      *
      * @param cache
      */
-    private void checkSynchronizedAccessToCacheOk(Ehcache cache) {
+    private void checkSynchronizedAccessToCacheOk(Cache cache) {
         try {
             cache.get("justasyncrhonizationtest");
         } catch (CacheException e) {
@@ -225,7 +186,7 @@ public class CountingCacheEventListener implements CacheEventListener {
      */
     public static class CounterEntry {
 
-        private Ehcache cache;
+        private Cache cache;
         private Element element;
 
         /**
@@ -234,7 +195,7 @@ public class CountingCacheEventListener implements CacheEventListener {
          * @param cache
          * @param element
          */
-        public CounterEntry(Ehcache cache, Element element) {
+        public CounterEntry(Cache cache, Element element) {
             this.cache = cache;
             this.element = element;
         }
@@ -242,7 +203,7 @@ public class CountingCacheEventListener implements CacheEventListener {
         /**
          * @return the cache the event relates to
          */
-        public Ehcache getCache() {
+        public Cache getCache() {
             return cache;
         }
 
@@ -254,21 +215,6 @@ public class CountingCacheEventListener implements CacheEventListener {
         }
 
 
-    }
-
-
-    /**
-     * Creates a clone of this listener. This method will only be called by ehcache before a cache is initialized.
-     * <p/>
-     * This may not be possible for listeners after they have been initialized. Implementations should throw
-     * CloneNotSupportedException if they do not support clone.
-     * <p/>
-     * This class uses static counters. Clones will share the same counters.
-     * @return a clone
-     * @throws CloneNotSupportedException if the listener could not be cloned.
-     */
-    public Object clone() throws CloneNotSupportedException {
-        return super.clone();
     }
 
 

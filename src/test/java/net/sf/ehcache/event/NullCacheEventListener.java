@@ -16,14 +16,17 @@
 
 package net.sf.ehcache.event;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 /**
  * A Null Object Pattern implementation of CacheEventListener. It simply logs the calls made.
+ * <p/>
+ * It is used by default.
+ *
  * @author Greg Luck
  * @version $Id$
  * @since 1.2
@@ -36,7 +39,7 @@ public class NullCacheEventListener implements CacheEventListener {
     /**
      * {@inheritDoc}
      */
-    public void notifyElementRemoved(final Ehcache cache, final Element element) {
+    public void notifyElementRemoved(final Cache cache, final Element element) {
         if (LOG.isTraceEnabled()) {
             LOG.trace("notifyElementRemoved called for cache " + cache + " for element with key " + element.getObjectKey());
         }
@@ -45,7 +48,7 @@ public class NullCacheEventListener implements CacheEventListener {
     /**
      * {@inheritDoc}
      */
-    public void notifyElementPut(final Ehcache cache, final Element element) {
+    public void notifyElementPut(final Cache cache, final Element element) {
         if (LOG.isTraceEnabled()) {
             Object key = null;
             if (element != null) {
@@ -68,7 +71,7 @@ public class NullCacheEventListener implements CacheEventListener {
      * @param cache   the cache emitting the notification
      * @param element the element which was just put into the cache.
      */
-    public void notifyElementUpdated(final Ehcache cache, final Element element) throws CacheException {
+    public void notifyElementUpdated(final Cache cache, final Element element) throws CacheException {
          if (LOG.isTraceEnabled()) {
             Object key = null;
             if (element != null) {
@@ -81,24 +84,10 @@ public class NullCacheEventListener implements CacheEventListener {
     /**
      * {@inheritDoc}
      */
-    public void notifyElementExpired(final Ehcache cache, final Element element) {
+    public void notifyElementExpired(final Cache cache, final Element element) {
         if (LOG.isTraceEnabled()) {
             LOG.trace("notifyElementExpired called for cache " + cache + " for element with key " + element.getObjectKey());
         }
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void notifyElementEvicted(final Ehcache cache, final Element element) {
-        //
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void notifyRemoveAll(final Ehcache cache) {
-        //
     }
 
     /**
@@ -106,17 +95,5 @@ public class NullCacheEventListener implements CacheEventListener {
      */
     public void dispose() {
         //nothing to do
-    }
-
-    /**
-     * Creates a clone of this listener. This method will only be called by ehcache before a cache is initialized.
-     * <p/>
-     * This may not be possible for listeners after they have been initialized. Implementations should throw
-     * CloneNotSupportedException if they do not support clone.
-     * @return a clone
-     * @throws CloneNotSupportedException if the listener could not be cloned.
-     */
-    public Object clone() throws CloneNotSupportedException {
-        return super.clone();
     }
 }

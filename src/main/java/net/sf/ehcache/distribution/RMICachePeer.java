@@ -16,18 +16,18 @@
 
 package net.sf.ehcache.distribution;
 
-import net.sf.ehcache.Ehcache;
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.Element;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
 import java.rmi.server.RMISocketFactory;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.List;
-import java.util.ArrayList;
 
 /**
  * An RMI based implementation of <code>CachePeer</code>.
@@ -44,7 +44,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
 
     private final String hostname;
     private final Integer port;
-    private final Ehcache cache;
+    private final Cache cache;
 
     /**
      * Construct a new remote peer.
@@ -55,7 +55,7 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @param socketTimeoutMillis
      * @throws RemoteException
      */
-    public RMICachePeer(Ehcache cache, String hostName, Integer port, Integer socketTimeoutMillis)
+    public RMICachePeer(Cache cache, String hostName, Integer port, Integer socketTimeoutMillis)
             throws RemoteException {
         super(0, new ConfigurableRMIClientSocketFactory(socketTimeoutMillis),
                 RMISocketFactory.getDefaultSocketFactory());
@@ -99,59 +99,6 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
                 .toString();
     }
 
-    /**
-     * Returns a list of all elements in the cache, whether or not they are expired.
-     * <p/>
-     * The returned keys are unique and can be considered a set.
-     * <p/>
-     * The List returned is not live. It is a copy.
-     * <p/>
-     * The time taken is O(n). On a single cpu 1.8Ghz P4, approximately 8ms is required
-     * for each 1000 entries.
-     *
-     * @return a list of {@link Object} keys
-     */
-    public List getKeys() throws RemoteException {
-        return cache.getKeys();
-    }
-
-    /**
-     * Gets an element from the cache, without updating Element statistics. Cache statistics are
-     * still updated.
-     *
-     * @param key a serializable value
-     * @return the element, or null, if it does not exist.
-     */
-    public Element getQuiet(Serializable key) throws RemoteException {
-        return cache.getQuiet(key);
-    }
-
-    /**
-     * Gets a list of elements from the cache, for a list of keys, without updating Element statistics. Time to
-     * idle lifetimes are therefore not affected.
-     * <p/>
-     * Cache statistics are still updated.
-     * <p/>
-     * Callers should ideally first call this method with a small list of keys to gauge the size of a typical Element.
-     * Then a calculation can be made of the right number to request each time so as to optimise network performance and
-     * not cause an OutOfMemory error on this Cache.
-     *
-     * @param keys a list of serializable values which represent keys
-     * @return a list of Elements. If an element was not found or null, it will not be in the list.
-     */
-    public List getElements(List keys) throws RemoteException {
-        if (keys == null) {
-            return new ArrayList();
-        }
-        List elements = new ArrayList();
-        for (int i = 0; i < keys.size(); i++) {
-            Serializable key = (Serializable) keys.get(i);
-            Element element = cache.getQuiet(key);
-            elements.add(element);
-        }
-        return elements;
-    }
-
 
     /**
      * Puts an Element into the underlying cache without notifying listeners or updating statistics.
@@ -163,9 +110,6 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      */
     public void put(Element element) throws RemoteException, IllegalArgumentException, IllegalStateException {
         cache.put(element, true);
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Remote put received. Element is: " + element);
-        }
     }
 
 
@@ -178,9 +122,6 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @throws IllegalStateException
      */
     public final boolean remove(Serializable key) throws RemoteException, IllegalStateException {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Remote remove received for key: " + key);
-        }
         return cache.remove(key, true);
     }
 
@@ -190,10 +131,12 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
      * @throws IllegalStateException if the cache is not {@link net.sf.ehcache.Status#STATUS_ALIVE}
      */
     public final void removeAll() throws RemoteException, IllegalStateException {
-        if (LOG.isTraceEnabled()) {
-            LOG.trace("Remote removeAll received");
+        try {
+            cache.removeAll();
+        } catch (IOException e) {
+            LOG.error(e.getMessage());
+            throw new RemoteException(e.getMessage());
         }
-        cache.removeAll(true);
     }
 
     /**
@@ -206,12 +149,8 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
             EventMessage eventMessage = (EventMessage) eventMessages.get(i);
             if (eventMessage.getEvent() == EventMessage.PUT) {
                 put(eventMessage.getElement());
-            } else if (eventMessage.getEvent() == EventMessage.REMOVE) {
-                remove(eventMessage.getSerializableKey());
-            } else if (eventMessage.getEvent() == EventMessage.REMOVE_ALL) {
-                removeAll();
             } else {
-                LOG.error("Unknown event: " + eventMessage);
+                remove(eventMessage.getSerializableKey());
             }
         }
     }
@@ -234,15 +173,8 @@ public class RMICachePeer extends UnicastRemoteObject implements CachePeer, Remo
     /**
      * Gets the cache instance that this listener is bound to
      */
-    final Ehcache getBoundCacheInstance() {
+    final Cache getBoundCacheInstance() {
         return cache;
-    }
-
-    /**
-     * Returns a String that represents the value of this object.
-     */
-    public String toString() {
-        return getUrl();
     }
 
 }

@@ -16,19 +16,20 @@
 
 package net.sf.ehcache.distribution;
 
-import net.sf.ehcache.CacheException;
 import net.sf.ehcache.CacheManager;
-import net.sf.ehcache.Ehcache;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import net.sf.ehcache.CacheException;
+import net.sf.ehcache.Cache;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.rmi.NotBoundException;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.Iterator;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.rmi.NotBoundException;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 
 /**
  * A peer provider which discovers peers using Multicast.
@@ -57,9 +58,10 @@ import java.util.List;
 public final class MulticastRMICacheManagerPeerProvider extends RMICacheManagerPeerProvider implements CacheManagerPeerProvider {
 
     /**
-     * One second, in ms
+     * The number of ms until the peer is considered to be offline. Once offline it will not be sent
+     * notifications.
      */
-    protected static final int SHORT_DELAY = 100;
+    public static final int STALE_PEER_TIME_MS = 11000;
 
     private static final Log LOG = LogFactory.getLog(MulticastRMICacheManagerPeerProvider.class.getName());
 
@@ -125,7 +127,7 @@ public final class MulticastRMICacheManagerPeerProvider extends RMICacheManagerP
     /**
      * @return a list of {@link CachePeer} peers, excluding the local peer.
      */
-    public final synchronized List listRemoteCachePeers(Ehcache cache) throws CacheException {
+    public final synchronized List listRemoteCachePeers(Cache cache) throws CacheException {
         List remoteCachePeers = new ArrayList();
         List staleList = new ArrayList();
         synchronized (peerUrls) {
@@ -172,22 +174,6 @@ public final class MulticastRMICacheManagerPeerProvider extends RMICacheManagerP
     }
 
     /**
-     * Time for a cluster to form. This varies considerably, depending on the implementation.
-     *
-     * @return the time in ms, for a cluster to form
-     */
-    public long getTimeForClusterToForm() {
-        return getStaleTime();
-    }
-
-    /**
-     * The time after which an unrefreshed peer provider entry is considered stale.
-     */
-    protected long getStaleTime() {
-        return MulticastKeepaliveHeartbeatSender.getHeartBeatInterval() * 2 + SHORT_DELAY;
-    }
-
-    /**
      * Whether the entry should be considered stale.
      * This will depend on the type of RMICacheManagerPeerProvider.
      * This method should be overridden for implementations that go stale based on date
@@ -197,7 +183,7 @@ public final class MulticastRMICacheManagerPeerProvider extends RMICacheManagerP
      */
     protected final boolean stale(Date date) {
         long now = System.currentTimeMillis();
-        return date.getTime() < (now - getStaleTime());
+        return date.getTime() < (now - STALE_PEER_TIME_MS);
     }
 
 

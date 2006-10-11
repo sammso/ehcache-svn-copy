@@ -23,6 +23,7 @@ import org.hibernate.cache.Cache;
 import org.hibernate.cache.CacheException;
 import org.hibernate.cache.Timestamper;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -48,7 +49,7 @@ public final class EhCache implements Cache {
 
     private static final int SIXTY_THOUSAND_MS = 60000;
 
-    private final net.sf.ehcache.Ehcache cache;
+    private final net.sf.ehcache.Cache cache;
 
     /**
      * Creates a new Hibernate pluggable cache by name.
@@ -59,7 +60,7 @@ public final class EhCache implements Cache {
      *
      * @param cache The backing ehcache cache.
      */
-    public EhCache(net.sf.ehcache.Ehcache cache) {
+    public EhCache(net.sf.ehcache.Cache cache) {
         this.cache = cache;
     }
 
@@ -163,6 +164,8 @@ public final class EhCache implements Cache {
         try {
             cache.removeAll();
         } catch (IllegalStateException e) {
+            throw new CacheException(e);
+        } catch (IOException e) {
             throw new CacheException(e);
         }
     }
@@ -285,7 +288,7 @@ public final class EhCache implements Cache {
     /**
      * Package protected method used for testing
      */
-    final net.sf.ehcache.Ehcache getBackingCache() {
+    final net.sf.ehcache.Cache getBackingCache() {
         return cache;
     }
 

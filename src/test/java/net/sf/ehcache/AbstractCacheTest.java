@@ -18,9 +18,8 @@ package net.sf.ehcache;
 
 import junit.framework.TestCase;
 
-import java.io.File;
 import java.io.IOException;
-import java.util.List;
+import java.io.File;
 
 /**
  * Common fields and methods required by most test cases
@@ -98,61 +97,8 @@ public abstract class AbstractCacheTest extends TestCase {
      */
     protected long measureMemoryUse() throws InterruptedException {
         System.gc();
-        Thread.sleep(2000);
+        Thread.sleep(3000);
         System.gc();
         return Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
     }
-
-    /**
-     * Runs a set of threads, for a fixed amount of time.
-     */
-    protected void runThreads(final List executables) throws Exception {
-
-        final long endTime = System.currentTimeMillis() + 10000;
-        final Throwable[] errors = new Throwable[1];
-
-        // Spin up the threads
-        final Thread[] threads = new Thread[executables.size()];
-        for (int i = 0; i < threads.length; i++) {
-            final Executable executable = (Executable) executables.get(i);
-            threads[i] = new Thread() {
-                public void run() {
-                    try {
-                        // Run the thread until the given end time
-                        while (System.currentTimeMillis() < endTime) {
-                            executable.execute();
-                        }
-                    } catch (Throwable t) {
-                        // Hang on to any errors
-                        errors[0] = t;
-                    }
-                }
-            };
-            threads[i].start();
-        }
-
-        // Wait for the threads to finish
-        for (int i = 0; i < threads.length; i++) {
-            threads[i].join();
-        }
-
-        // Throw any error that happened
-        if (errors[0] != null) {
-            throw new Exception("Test thread failed.", errors[0]);
-        }
-    }
-
-
-    /**
-     * A runnable, that can throw an exception.
-     */
-    protected interface Executable {
-        /**
-         * Executes this object.
-         *
-         * @throws Exception
-         */
-        void execute() throws Exception;
-    }
-
 }

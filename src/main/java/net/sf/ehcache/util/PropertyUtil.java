@@ -19,10 +19,9 @@ package net.sf.ehcache.util;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
+import java.util.Properties;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.util.Properties;
-import java.util.Map;
 
 /**
  * Property utilities.
@@ -59,24 +58,6 @@ public final class PropertyUtil {
     }
 
     /**
-     * @return null if their is no property for the key, or their are no properties
-     */
-    public static String extractAndLogProperty(String name, Map properties) {
-        if (properties == null || properties.size() == 0) {
-            return null;
-        }
-        String foundValue = (String) properties.get(name);
-        if (foundValue != null) {
-            foundValue = foundValue.trim();
-        }
-        if (LOG.isDebugEnabled()) {
-            LOG.debug(new StringBuffer().append("Value found for ").append(name).append(": ")
-                    .append(foundValue).toString());
-        }
-        return foundValue;
-    }
-
-    /**
      * Parse properties supplied as a comma separated list into a <code>Properties</code> object
      * @param propertiesString a comma separated list such as <code>"propertyA=s, propertyB=t"</code>
      * @return a newly constructed properties object
@@ -95,14 +76,5 @@ public final class PropertyUtil {
             LOG.error("Cannot load properties from " + propertiesString);
         }
         return properties;
-    }
-
-    /**
-     * Null safe, parser of boolean from a String
-     * @param value
-     * @return true if non null and case insensitively matches true
-     */
-    public static boolean parseBoolean(String value) {
-        return ((value != null) && value.equalsIgnoreCase("true"));
     }
 }

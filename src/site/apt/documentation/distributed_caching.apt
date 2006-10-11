@@ -1,3 +1,10 @@
+ ------
+ Distributed Caching
+ ------
+ ------
+ Date
+ ------
+
 Distributed Caching
 
     As of version 1.2, Ehcache can be used as a distributed cache.
@@ -9,7 +16,7 @@ Distributed Caching
     the fullly documented API to see how to do that.
 
     Though not necessary to use distributed caching an insight into the
-    design decisions used in ehcache may be helpful. See the {{{./distributed_design.html}Design of distributed ehcache}} page.
+    design decisions used in ehcache may be helpful. See the {{{distributed_design.html}Design of distributed ehcache}} page.
 
     The rest of this section documents the distribution plugins which are
     bundled with ehcache.
@@ -38,7 +45,7 @@ Distributed Caching
     Some operations, such as remove,  work off Element keys rather than the full Element itself. In this case
     the operation will be replicated provided the key is Serializable, even if the Element is not.
 
-* {Peer Discovery}
+* Peer Discovery
 
     Ehcache has the notion of a group of caches acting as a distributed
     cache. Each of the caches is a peer to the others. There is no
@@ -52,7 +59,7 @@ Distributed Caching
     attribute of <<<cacheManagerPeerProviderFactory>>> as <<<net.sf.ehcache.distribution.RMICacheManagerPeerProviderFactory>>>
     in the ehcache.xml configuration file.
 
-** {Automatic Peer Discovery}
+** Automatic Discovery
 
     Automatic discovery uses TCP multicast to establish and maintain a
     multicast group. It features minimal configuration and automatic
@@ -82,15 +89,15 @@ Distributed Caching
 
     Configuration for server1 and server2
 
---------------------------------------------
++------------------------------------------+
  <cacheManagerPeerProviderFactory
  class="net.sf.ehcache.distribution.RMICacheManagerPeerProviderFactory"
 
  properties="peerDiscovery=automatic, multicastGroupAddress=230.0.0.1,
  multicastGroupPort=4446"/>
---------------------------------------------
++------------------------------------------+
 
-** {Manual Peer Discovery}
+** Manual Peer Discovery
 
      Manual peer configuration requires the IP address and port of each
      listener to be known. Peers cannot be added or removed at
@@ -116,24 +123,24 @@ Distributed Caching
 
      Configuration for server1
 
---------------------------------------------
++------------------------------------------+
  <cacheManagerPeerProviderFactory
  class="net.sf.ehcache.distribution.RMICacheManagerPeerProviderFactory"
 
  properties="peerDiscovery=manual,
  rmiUrls=//server2:40001/sampleCache11|//server2:40001/sampleCache12"/>
---------------------------------------------
++------------------------------------------+
 
 
      Configuration for server2
 
---------------------------------------------
++------------------------------------------+
  <cacheManagerPeerProviderFactory
  class="net.sf.ehcache.distribution.RMICacheManagerPeerProviderFactory"
 
  properties="peerDiscovery=manual,
  rmiUrls=//server1:40001/sampleCache11|//server1:40001/sampleCache12"/>
---------------------------------------------
++------------------------------------------+
 
 
 
@@ -156,13 +163,13 @@ Distributed Caching
     using RMICacheManagerPeerListenerFactory. It is configured as per the
     following example:
 
---------------------------------------------
++------------------------------------------+
 <cacheManagerPeerListenerFactory
 class="net.sf.ehcache.distribution.RMICacheManagerPeerListenerFactory"
 
 properties="hostName=localhost, port=40001,
 socketTimeoutMillis=2000"/>
---------------------------------------------
++------------------------------------------+
 
     Valid properties are:
 
@@ -196,7 +203,7 @@ socketTimeoutMillis=2000"/>
     configuration.
 
 
---------------------------------------------
++------------------------------------------+
     <!-- Sample cache named sampleCache2. -->
     <cache name="sampleCache2"
            maxElementsInMemory="10"
@@ -207,7 +214,7 @@ socketTimeoutMillis=2000"/>
         <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"
                                    properties="replicateAsynchronously=true, replicatePuts=true, replicateUpdates=true, replicateUpdatesViaCopy=false, replicateRemovals=true "/>
     </cache>
---------------------------------------------
++------------------------------------------+
 
     class - use net.sf.ehcache.distribution.RMICacheReplicatorFactory
 
@@ -230,7 +237,7 @@ socketTimeoutMillis=2000"/>
  To reduce typing if you want default behaviour, which is replicate everything in asynchronous mode, you can leave off
  the <<<RMICacheReplicatorFactory>>> properties as per the following example:
 
---------------------------------------------
++------------------------------------------+
     <!-- Sample cache named sampleCache4. All missing RMICacheReplicatorFactory properties default to true -->
     <cache name="sampleCache4"
            maxElementsInMemory="10"
@@ -239,24 +246,4 @@ socketTimeoutMillis=2000"/>
            memoryStoreEvictionPolicy="LFU">
         <cacheEventListenerFactory class="net.sf.ehcache.distribution.RMICacheReplicatorFactory"/>
     </cache>
---------------------------------------------
-
-* Common Problems
-
-** Tomcat on Windows
-
-  There is a bug in Tomcat and/or the JDK where any RMI listener will fail to start on Tomcat if
-  the installation path has spaces in it. See http://archives.java.sun.com/cgi-bin/wa?A2=ind0205&L=rmi-users&P=797
-  and http://www.ontotext.com/kim/doc/sys-doc/faq-howto-bugs/known-bugs.html.
-
-  As the default on Windows is to install Tomcat in "Program Files", this issue will occur by default.
-
-** Multicast Blocking
-
-  The automatic peer discovery process relies on multicast. Multicast can be blocked by routers.
-  Virtualisation technologies like Xen and VMWare may be blocking multicast. If so enable it.
-  You may also need to turn it on in the configuration for your network interface card.
-
-  An easy way to tell if your mutlicast is getting through is to use the ehcache remote debugger
-  and watch for the heartbeat packets to arrive.
-
++------------------------------------------+

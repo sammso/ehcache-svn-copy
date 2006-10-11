@@ -16,10 +16,11 @@
 
 package net.sf.ehcache.store;
 
+import net.sf.ehcache.Cache;
 import net.sf.ehcache.CacheException;
-import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.Status;
+import net.sf.ehcache.event.RegisteredEventListeners;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
@@ -40,7 +41,7 @@ public abstract class MemoryStore implements Store {
     /**
      * The cache this store is associated with.
      */
-    protected Ehcache cache;
+    protected Cache cache;
 
     /**
      * Map where items are stored by key.
@@ -63,15 +64,13 @@ public abstract class MemoryStore implements Store {
      * @param cache
      * @param diskStore
      */
-    protected MemoryStore(Ehcache cache, DiskStore diskStore) {
+    protected MemoryStore(Cache cache, DiskStore diskStore) {
         status = Status.STATUS_UNINITIALISED;
         this.cache = cache;
         this.diskStore = diskStore;
         status = Status.STATUS_ALIVE;
 
-        if (LOG.isDebugEnabled()) {
-            LOG.debug("Initialized " + this.getClass().getName() + " for " + cache.getName());
-        }
+        LOG.debug("Initialized " + this.getClass().getName() + " for " + cache.getName());
     }
 
 
@@ -82,7 +81,7 @@ public abstract class MemoryStore implements Store {
      * @param diskStore
      * @return an instance of a MemoryStore, configured with the appropriate eviction policy
      */
-    public static MemoryStore create(Ehcache cache, DiskStore diskStore) {
+    public static MemoryStore create(Cache cache, DiskStore diskStore) {
         MemoryStore memoryStore = null;
         MemoryStoreEvictionPolicy policy = cache.getMemoryStoreEvictionPolicy();
 
@@ -183,8 +182,12 @@ public abstract class MemoryStore implements Store {
 
     /**
      * Remove all of the elements from the store.
+     * <p/>
+     * If there are registered <code>CacheEventListener</code>s they are notified of the expiry or removal
+     * of the <code>Element</code> as each is removed.
      */
     public final synchronized void removeAll() throws CacheException {
+        notifyingRemoveAll();
         clear();
     }
 
@@ -193,6 +196,26 @@ public abstract class MemoryStore implements Store {
      */
     protected final void clear() {
         map.clear();
+    }
+
+    /**
+     * If there are registered <code>CacheEventListener</code>s they are notified of the expiry or removal
+     * of the <code>Element</code> as each is removed.
+     */
+    protected final void notifyingRemoveAll() throws CacheException {
+        RegisteredEventListeners listeners = cache.getCacheEventNotificationService();
+        if (!listeners.getCacheEventListeners().isEmpty()) {
+            Object[] keys = getKeyArray();
+            for (int i = 0; i < keys.length; i++) {
+                Object key = keys[i];
+                Element element = remove(key);
+                if (cache.isExpired(element)) {
+                    listeners.notifyElementExpiry(element, false);
+                } else {
+                    listeners.notifyElementRemoved(element, false);
+                }
+            }
+        }
     }
 
     /**
@@ -251,7 +274,7 @@ public abstract class MemoryStore implements Store {
 
     /**
      * Puts the element in the DiskStore.
-     * Should only be called if {@link Ehcache#isOverflowToDisk} is true
+     * Should only be called if {@link Cache#isOverflowToDisk} is true
      * <p/>
      * Relies on being called from a synchronized method
      *
@@ -306,7 +329,6 @@ public abstract class MemoryStore implements Store {
 
     /**
      * Measures the size of the memory store by measuring the serialized size of all elements.
-     * If the objects are not Serializable they count as 0. 
      * <p/>
      * Warning: This method can be very expensive to run. Allow approximately 1 second
      * per 1MB of entries. Running this method could create liveness problems
@@ -352,7 +374,7 @@ public abstract class MemoryStore implements Store {
         }
 
         if (!spooled) {
-            cache.getCacheEventNotificationService().notifyElementEvicted(element, false);
+            cache.getCacheEventNotificationService().notifyElementRemoved(element, false);
         }
     }
 
@@ -371,6 +393,5 @@ public abstract class MemoryStore implements Store {
     protected final boolean isFull() {
         return map.size() > cache.getMaxElementsInMemory();
     }
-
 
 }

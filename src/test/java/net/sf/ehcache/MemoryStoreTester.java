@@ -16,16 +16,15 @@
 
 package net.sf.ehcache;
 
-import net.sf.ehcache.distribution.JVMUtil;
-import net.sf.ehcache.store.LruMemoryStoreTest;
 import net.sf.ehcache.store.MemoryStoreEvictionPolicy;
 import net.sf.ehcache.store.Store;
+import net.sf.ehcache.store.LruMemoryStoreTest;
+import net.sf.ehcache.distribution.JVMUtil;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Random;
 
@@ -43,13 +42,6 @@ public class MemoryStoreTester extends AbstractCacheTest {
      * The memory store that tests will be performed on
      */
     protected Store store;
-
-
-    /**
-     * The cache under test
-     */
-    protected Cache cache;
-
 
     /**
      * For automatic suite generators
@@ -81,7 +73,7 @@ public class MemoryStoreTester extends AbstractCacheTest {
      * @throws CacheException
      */
     protected void createMemoryStore(MemoryStoreEvictionPolicy evictionPolicy) throws CacheException {
-        cache = new Cache("test", 1000, evictionPolicy, true, null, true, 60, 30, false, 60, null);
+        Cache cache = new Cache("test", 1000, evictionPolicy, true, null, true, 60, 30, false, 60, null);
         manager.addCache(cache);
         store = cache.getMemoryStore();
     }
@@ -94,7 +86,7 @@ public class MemoryStoreTester extends AbstractCacheTest {
      */
     protected void createMemoryStore(MemoryStoreEvictionPolicy evictionPolicy, int memoryStoreSize) throws CacheException {
         manager.removeCache("test");
-        cache = new Cache("test", memoryStoreSize, evictionPolicy, true, null, true, 60, 30, false, 60, null);
+        Cache cache = new Cache("test", memoryStoreSize, evictionPolicy, true, null, true, 60, 30, false, 60, null);
         manager.addCache(cache);
         store = cache.getMemoryStore();
     }
@@ -109,7 +101,7 @@ public class MemoryStoreTester extends AbstractCacheTest {
     protected void createMemoryStore(String filePath, String cacheName) throws CacheException {
         manager.shutdown();
         manager = CacheManager.create(filePath);
-        cache = manager.getCache(cacheName);
+        Cache cache = manager.getCache(cacheName);
         store = cache.getMemoryStore();
     }
 
@@ -131,14 +123,6 @@ public class MemoryStoreTester extends AbstractCacheTest {
         store.put(element);
         assertEquals(2, store.getSize());
         assertEquals("value2", store.get("key2").getObjectValue());
-
-        for (int i = 0; i < 2000; i++) {
-            store.put(new Element("" + i, new Date()));
-        }
-
-        assertEquals(4, store.getSize());
-        assertEquals(2002, cache.getSize());
-        assertEquals(1998, cache.getDiskStoreSize());
     }
 
     /**
@@ -167,7 +151,6 @@ public class MemoryStoreTester extends AbstractCacheTest {
 
         //check no NPE on key handling
         assertNull(store.remove(null));
-
     }
 
 
@@ -553,6 +536,60 @@ public class MemoryStoreTester extends AbstractCacheTest {
 
 
     /**
+     * Runs a set of threads, for a fixed amount of time.
+     */
+    protected void runThreads(final List executables) throws Exception {
+
+        final long endTime = System.currentTimeMillis() + 10000;
+        final Throwable[] errors = new Throwable[1];
+
+        // Spin up the threads
+        final Thread[] threads = new Thread[executables.size()];
+        for (int i = 0; i < threads.length; i++) {
+            final LruMemoryStoreTest.Executable executable = (MemoryStoreTester.Executable) executables.get(i);
+            threads[i] = new Thread() {
+                public void run() {
+                    try {
+                        // Run the thread until the given end time
+                        while (System.currentTimeMillis() < endTime) {
+                            executable.execute();
+                        }
+                    } catch (Throwable t) {
+                        // Hang on to any errors
+                        errors[0] = t;
+                    }
+                }
+            };
+            threads[i].start();
+        }
+
+        // Wait for the threads to finish
+        for (int i = 0; i < threads.length; i++) {
+            threads[i].join();
+        }
+
+        // Throw any error that happened
+        if (errors[0] != null) {
+            throw new Exception("Test thread failed.", errors[0]);
+        }
+    }
+
+
+    /**
+     * A runnable, that can throw an exception.
+     */
+    protected interface Executable {
+        /**
+         * Executes this object.
+         *
+         * @throws Exception
+         */
+        void execute() throws Exception;
+    }
+
+
+
+    /**
      * Test behaviour of memory store using 1 million records.
      * This is expected to run out of memory on a 64MB machine. Where it runs out
      * is asserted so that design changes do not start using more memory per element.
@@ -565,7 +602,7 @@ public class MemoryStoreTester extends AbstractCacheTest {
      */
     public void testMemoryStoreOutOfMemoryLimit() throws Exception {
         //Set size so the second element overflows to disk.
-        cache = new Cache("memoryLimitTest", 1000000, false, false, 500, 500);
+        Cache cache = new Cache("memoryLimitTest", 1000000, false, false, 500, 500);
         manager.addCache(cache);
         int i = 0;
         try {

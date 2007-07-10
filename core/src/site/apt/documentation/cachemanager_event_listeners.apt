@@ -68,7 +68,7 @@ properties=""/>
  * ehcache.xml
  *
  * @author Greg Luck
- * @version $Id$
+ * @version $Id: cachemanager_event_listeners.apt 135 2006-06-26 06:55:03Z gregluck $
  * @see "http://ehcache.sourceforge.net/documentation/cachemanager_event_listeners.html"
  */
 public abstract class CacheManagerEventListenerFactory {
@@ -101,7 +101,7 @@ public abstract class CacheManagerEventListenerFactory {
  * the implementer to safely handle the potential performance and thread safety issues
  * depending on what their listener is doing.
  * @author Greg Luck
- * @version $Id$
+ * @version $Id: cachemanager_event_listeners.apt 135 2006-06-26 06:55:03Z gregluck $
  * @since 1.2
  * @see CacheEventListener
  */

@@ -170,5 +170,4 @@
                                                replicateRemovals=true "/>
     </cache>
 
-
 </ehcache>

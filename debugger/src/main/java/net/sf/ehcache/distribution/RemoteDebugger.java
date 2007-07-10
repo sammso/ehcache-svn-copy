@@ -10,7 +10,7 @@ import net.sf.ehcache.Ehcache;
  * It is passed the ehcache configuration to use and cache to monitor
  *
  * @author Greg Luck
- * @version $Id: RemoteDebugger.java 331 2007-01-29 09:38:41Z gregluck $
+ * @version $Id$
  */
 public final class RemoteDebugger {
     private static final int TWO_SECONDS = 2000;

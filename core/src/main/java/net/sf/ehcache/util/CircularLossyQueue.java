@@ -30,9 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
  * @author <a href="mailto:asanoujam@terracottatech.com">Abhishek Sanoujam</a>
  * @since 1.7
  */
-public class
-
-        CircularLossyQueue<T> {
+public class CircularLossyQueue<T> {
     private final AtomicReference<T>[] circularArray;
     private final int maxSize;
 
@@ -71,8 +69,6 @@ public class
      *         element is the head of the queue
      */
     public T[] toArray(T[] type) {
-        System.getProperties();
-
         if (type.length > maxSize) {
             throw new IllegalArgumentException(
                     "Size of array passed in cannot be greater than " + maxSize);

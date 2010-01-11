@@ -1,9 +1,9 @@
  ----
- Distributed Cache - Performance At Any Scale
+ Performance At Any Scale
  ---- 
 
 
-Ehcache Distributed Cache
+Performance At Any Scale
 
  Ehcache is a widely used java distributed cache for general purpose caching, Java EE and light-weight containers.
 
@@ -47,20 +47,15 @@ Ehcache Distributed Cache
 {{{documentation/cache_server.html}ehcache-server}} | RESTful cache server in a WAR or standalone
 *----------+--------------:
 
-.
+===
+
+ newsticker
+
+===
 
   ehcache_1_7_talk
 
 * Latest News
-
-** 22 December 2009: Ehcache OpenJPA plugin 0.2 released
-
-   Back in July we released the first plugin for OpenJPA. This version brings OpenJPA more into line with the Hibernate
-   plugin and more fully implements the OpenJPA API. As with all of the modules we are releasing, this version adds the option,
-   when paired with the ehcache-terracotta module of clustering via Terracotta.
-
-   See {{{documentation/openjpa_provider.html}ehcache-openjpa}}.
-
 
 ** 15 December 2009: Ehcache Monitor Beta 2 released
 

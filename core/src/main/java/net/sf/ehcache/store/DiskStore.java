@@ -38,7 +38,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
-import net.sf.ehcache.Cache;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,7 +47,6 @@ import net.sf.ehcache.Ehcache;
 import net.sf.ehcache.Element;
 import net.sf.ehcache.Status;
 import net.sf.ehcache.config.CacheConfiguration;
-import net.sf.ehcache.config.CacheConfigurationListener;
 import net.sf.ehcache.event.RegisteredEventListeners;
 import net.sf.ehcache.util.MemoryEfficientByteArrayOutputStream;
 
@@ -67,7 +65,7 @@ import net.sf.ehcache.util.MemoryEfficientByteArrayOutputStream;
  * @author patches contributed: Ben Houston
  * @version $Id$
  */
-public class DiskStore implements Store, CacheConfigurationListener {
+public class DiskStore implements Store {
 
     /**
      * If the CacheManager needs to resolve a conflict with the disk path, it will create a
@@ -83,7 +81,7 @@ public class DiskStore implements Store, CacheConfigurationListener {
     private static final int ESTIMATED_MINIMUM_PAYLOAD_SIZE = 512;
     private static final int ONE_MEGABYTE = 1048576;
     private static final int QUARTER_OF_A_SECOND = 250;
-    private static final long MAX_EVICTION_RATIO = 5L;
+
     private long expiryThreadInterval;
 
     private final String name;
@@ -126,7 +124,7 @@ public class DiskStore implements Store, CacheConfigurationListener {
     /**
      * The maximum elements to allow in the disk file.
      */
-    private volatile long maxElementsOnDisk;
+    private final long maxElementsOnDisk;
     /**
      * Whether the cache is eternal
      */
@@ -147,7 +145,7 @@ public class DiskStore implements Store, CacheConfigurationListener {
      * @param cache    the {@link net.sf.ehcache.Cache} that the store is part of
      * @param diskPath the directory in which to create data and index files
      */
-    protected DiskStore(Ehcache cache, String diskPath) {
+    public DiskStore(Ehcache cache, String diskPath) {
         status = Status.STATUS_UNINITIALISED;
         this.cache = cache;
         name = cache.getName();
@@ -181,18 +179,6 @@ public class DiskStore implements Store, CacheConfigurationListener {
         }
     }
 
-    /**
-     * A factory method to create a DiskStore.
-     *
-     * @param cache
-     * @param diskStorePath
-     * @return an instance of a DiksStore
-     */
-    public static Store create(Cache cache, String diskStorePath) {
-        DiskStore store = new DiskStore(cache, diskStorePath);
-        cache.getCacheConfiguration().addListener(store);
-        return store;
-    }
 
     private void initialiseFiles() throws Exception {
         if (diskPath == null) {
@@ -738,8 +724,7 @@ public class DiskStore implements Store, CacheConfigurationListener {
         final Serializable key = (Serializable) element.getObjectKey();
         removeOldEntryIfAny(key);
         if (maxElementsOnDisk > 0 && diskElements.size() >= maxElementsOnDisk) {
-            long overflow = 1 + diskElements.size() - maxElementsOnDisk;
-            evictLfuDiskElements((int) Math.min(overflow, MAX_EVICTION_RATIO));
+            evictLfuDiskElement();
         }
         writeElement(element, key);
     }
@@ -957,7 +942,7 @@ public class DiskStore implements Store, CacheConfigurationListener {
         // Clean up the spool
         for (Iterator iterator = spool.values().iterator(); iterator.hasNext();) {
             final Element element = (Element) iterator.next();
-            if (element.isExpired(cache.getCacheConfiguration())) {
+            if (element.isExpired()) {
                 // An expired element
                 if (LOG.isDebugEnabled()) {
                     LOG.debug(name + "Cache: Removing expired spool element " + element.getObjectKey());
@@ -1044,55 +1029,6 @@ public class DiskStore implements Store, CacheConfigurationListener {
      */
     public static String generateUniqueDirectory() {
         return DiskStore.AUTO_DISK_PATH_DIRECTORY_PREFIX + "_" + System.currentTimeMillis();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void timeToIdleChanged(long oldTti, long newTti) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void timeToLiveChanged(long oldTtl, long newTtl) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void diskCapacityChanged(int oldCapacity, int newCapacity) {
-        this.maxElementsOnDisk = newCapacity;
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void memoryCapacityChanged(int oldCapacity, int newCapacity) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void loggingEnabledChanged(boolean oldValue, boolean newValue) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void registered(CacheConfiguration config) {
-        // no-op
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void deregistered(CacheConfiguration config) {
-        // no-op
     }
 
 
@@ -1263,14 +1199,12 @@ public class DiskStore implements Store, CacheConfigurationListener {
         }
     }
 
-    private void evictLfuDiskElements(int count) {
+    private void evictLfuDiskElement() {
         synchronized (diskElements) {
-            for (int i = 0; i < count; i++) {
-                DiskElement diskElement = findRelativelyUnused();
-                diskElements.remove(diskElement.key);
-                notifyEvictionListeners(diskElement);
-                freeBlock(diskElement);
-            }
+            DiskElement diskElement = findRelativelyUnused();
+            diskElements.remove(diskElement.key);
+            notifyEvictionListeners(diskElement);
+            freeBlock(diskElement);
         }
     }
 

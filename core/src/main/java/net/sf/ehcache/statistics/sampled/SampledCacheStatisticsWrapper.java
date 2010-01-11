@@ -183,15 +183,6 @@ public class SampledCacheStatisticsWrapper implements CacheUsageListener, Sample
     /**
      * {@inheritDoc}
      * 
-     * @see net.sf.ehcache.statistics.sampled.SampledCacheStatistics#clearStatistics()
-     */
-    public void clearStatistics() {
-        delegate.clearStatistics();
-    }
-
-    /**
-     * {@inheritDoc}
-     * 
      */
     public String getStatisticsAccuracyDescription() {
         return delegate.getStatisticsAccuracyDescription();

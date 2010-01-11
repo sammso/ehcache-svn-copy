@@ -53,7 +53,6 @@
     <suppress checks="ClassDataAbstractionCoupling" files="Cache.java"/>
     <suppress checks="ClassFanOutComplexity" files="DiskStore.java"/>
     <suppress checks="ClassFanOutComplexity" files="Cache.java"/>
-    <suppress checks="ClassFanOutComplexity" files="CacheManager.java"/>
     <suppress checks="ClassDataAbstractionCoupling" files="ElementTest.java"/>
     <suppress checks="IllegalType" files="Cache.java"/>
     <suppress checks="ParameterNumber" files="Cache.java"/>
@@ -64,8 +63,6 @@
     <suppress checks="AnonInnerLengthCheck" files="Cache.java"/>
     <suppress checks="ClassFanOutComplexity" files="ConfigurationHelper.java"/>
     <suppress checks="ParameterNumber" files="Statistics.java"/>
-    <suppress checks="CyclomaticComplexity" files="ConfigurationGenerator.java"/>
-    <suppress checks="NPathComplexity" files="ConfigurationGenerator.java"/>
 
 
 
@@ -79,7 +76,7 @@
     <!-- Contributed code -->
     <suppress checks="CyclomaticComplexity" files="Mutex.java"/>
     <suppress checks="" files="ConcurrentLinkedHashMap.java"/>
-    <suppress checks="" files="ConcurrentHashMap.java"/>
+
 
     <!-- Contains a thread therefore cannot.  -->
     <suppress checks="SuperClone" files="RMIBootstrapCacheLoader.java"/>

@@ -39,7 +39,6 @@ import net.sf.ehcache.store.Policy;
 import net.sf.ehcache.store.Store;
 import net.sf.ehcache.util.NamedThreadFactory;
 import net.sf.ehcache.util.TimeUtil;
-import net.sf.ehcache.writebehind.WriteBehind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -139,7 +138,7 @@ public class Cache implements Ehcache {
     private static final int EXECUTOR_MAXIMUM_POOL_SIZE = Math.min(10, Runtime.getRuntime().availableProcessors());
     private static final int EXECUTOR_CORE_POOL_SIZE = 1;
 
-    static {
+    static {             
         try {
             localhost = InetAddress.getLocalHost();
         } catch (UnknownHostException e) {
@@ -151,7 +150,7 @@ public class Cache implements Ehcache {
     }
 
     private volatile boolean disabled = Boolean.getBoolean(NET_SF_EHCACHE_DISABLED);
-
+    
     private final boolean useClassicLru = Boolean.getBoolean(NET_SF_EHCACHE_USE_CLASSIC_LRU);
 
     private volatile Store diskStore;
@@ -166,8 +165,6 @@ public class Cache implements Ehcache {
      * The {@link MemoryStore} of this {@link Cache}. All caches have a memory store.
      */
     private volatile Store memoryStore;
-
-    private volatile WriteBehind writeBehind;
 
     private volatile RegisteredEventListeners registeredEventListeners;
 
@@ -201,7 +198,6 @@ public class Cache implements Ehcache {
 
     private volatile SampledCacheStatisticsWrapper sampledCacheStatistics;
 
-    private volatile boolean allowDisable = true;
 
     /**
      * 1.0 Constructor.
@@ -433,12 +429,7 @@ public class Cache implements Ehcache {
                 true,
                 false,
                 null,
-                TerracottaConfiguration.DEFAULT_COHERENT_READS,
-                TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION,
-                TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION_PERIOD,
-                TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE,
-                TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE_SIZE,
-                TerracottaConfiguration.DEFAULT_COPY_ON_READ);
+                true);
 
     }
 
@@ -500,12 +491,7 @@ public class Cache implements Ehcache {
                 true,
                 false,
                 null,
-                TerracottaConfiguration.DEFAULT_COHERENT_READS,
-                TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION,
-                TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION_PERIOD,
-                TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE,
-                TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE_SIZE,
-                TerracottaConfiguration.DEFAULT_COPY_ON_READ);
+                true);
 
     }
 
@@ -552,14 +538,10 @@ public class Cache implements Ehcache {
                  int maxElementsOnDisk,
                  int diskSpoolBufferSizeMB,
                  boolean clearOnFlush) {
-
+    
         this(name, maxElementsInMemory, memoryStoreEvictionPolicy, overflowToDisk, diskStorePath, eternal, timeToLiveSeconds,
-                timeToIdleSeconds, diskPersistent, diskExpiryThreadIntervalSeconds, registeredEventListeners,
-                bootstrapCacheLoader, maxElementsOnDisk, diskSpoolBufferSizeMB, clearOnFlush, false, null,
-                TerracottaConfiguration.DEFAULT_COHERENT_READS, TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION,
-                TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION_PERIOD, TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE,
-                TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE_SIZE,
-                TerracottaConfiguration.DEFAULT_COPY_ON_READ);
+                timeToIdleSeconds, diskPersistent, diskExpiryThreadIntervalSeconds, registeredEventListeners, 
+                bootstrapCacheLoader, maxElementsOnDisk, diskSpoolBufferSizeMB, clearOnFlush, false, null, true);
     }
 
     /**
@@ -593,58 +575,6 @@ public class Cache implements Ehcache {
      * @param terracottaCoherentReads   whether this cache should use coherent reads (usually should be true) unless optimizing for read-only
      * @since 1.7.0
      */
-    public Cache(String name, int maxElementsInMemory, MemoryStoreEvictionPolicy memoryStoreEvictionPolicy, boolean overflowToDisk,
-            String diskStorePath, boolean eternal, long timeToLiveSeconds, long timeToIdleSeconds, boolean diskPersistent,
-            long diskExpiryThreadIntervalSeconds, RegisteredEventListeners registeredEventListeners,
-            BootstrapCacheLoader bootstrapCacheLoader, int maxElementsOnDisk, int diskSpoolBufferSizeMB, boolean clearOnFlush,
-            boolean isTerracottaClustered, String terracottaValueMode, boolean terracottaCoherentReads) {
-
-        this(name, maxElementsInMemory, memoryStoreEvictionPolicy, overflowToDisk, diskStorePath, eternal, timeToLiveSeconds,
-                timeToIdleSeconds, diskPersistent, diskExpiryThreadIntervalSeconds, registeredEventListeners, bootstrapCacheLoader,
-                maxElementsOnDisk, diskSpoolBufferSizeMB, clearOnFlush, isTerracottaClustered, terracottaValueMode,
-                terracottaCoherentReads, TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION,
-                TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION_PERIOD, TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE,
-                TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE_SIZE,
-                TerracottaConfiguration.DEFAULT_COPY_ON_READ);
-    }
-
-    /**
-     * 1.8.0 Constructor
-     * <p/>
-     * The {@link net.sf.ehcache.config.ConfigurationFactory} and clients can create these.
-     * <p/>
-     * A client can specify their own settings here and pass the {@link Cache} object
-     * into {@link CacheManager#addCache} to specify parameters other than the defaults.
-     * <p/>
-     * Only the CacheManager can initialise them.
-     *
-     * @param name                      the name of the cache. Note that "default" is a reserved name for the defaultCache.
-     * @param maxElementsInMemory       the maximum number of elements in memory, before they are evicted
-     * @param memoryStoreEvictionPolicy one of LRU, LFU and FIFO. Optionally null, in which case it will be set to LRU.
-     * @param overflowToDisk            whether to use the disk store
-     * @param diskStorePath             this parameter is ignored. CacheManager sets it using setter injection.
-     * @param eternal                   whether the elements in the cache are eternal, i.e. never expire
-     * @param timeToLiveSeconds         the default amount of time to live for an element from its creation date
-     * @param timeToIdleSeconds         the default amount of time to live for an element from its last accessed or modified date
-     * @param diskPersistent            whether to persist the cache to disk between JVM restarts
-     * @param diskExpiryThreadIntervalSeconds
-     *                                  how often to run the disk store expiry thread. A large number of 120 seconds plus is recommended
-     * @param registeredEventListeners  a notification service. Optionally null, in which case a new one with no registered listeners will be created.
-     * @param bootstrapCacheLoader      the BootstrapCacheLoader to use to populate the cache when it is first initialised. Null if none is required.
-     * @param maxElementsOnDisk         the maximum number of Elements to allow on the disk. 0 means unlimited.
-     * @param diskSpoolBufferSizeMB     the amount of memory to allocate the write buffer for puts to the DiskStore.
-     * @param clearOnFlush              whether the MemoryStore should be cleared when {@link #flush flush()} is called on the cache
-     * @param isTerracottaClustered     whether to cluster this cache with Terracotta
-     * @param terracottaValueMode       either "SERIALIZATION" or "IDENTITY" mode, only used if isTerracottaClustered=true
-     * @param terracottaCoherentReads   whether this cache should use coherent reads (usually should be true) unless optimizing for read-only
-     * @param terracottaOrphanEviction  whether this cache should perform orphan eviction (usually should be true)
-     * @param terracottaOrphanEvictionPeriod
-     *                                  how often this cache should perform orphan eviction (measured in regular eviction periods)
-     * @param terracottaLocalKeyCache   whether this cache should use an unclustered local key cache (usually should be false unless optimizing for a small read-only cache)
-     * @param terracottaLocalKeyCacheSize
-     *                                  maximum size of the local key cache (usually the size of the key set of the cache or cache partition)
-     * @since 1.8.0
-     */
     public Cache(String name,
                  int maxElementsInMemory,
                  MemoryStoreEvictionPolicy memoryStoreEvictionPolicy,
@@ -662,12 +592,7 @@ public class Cache implements Ehcache {
                  boolean clearOnFlush,
                  boolean isTerracottaClustered,
                  String terracottaValueMode,
-                 boolean terracottaCoherentReads,
-                 boolean terracottaOrphanEviction,
-                 int terracottaOrphanEvictionPeriod,
-                 boolean terracottaLocalKeyCache,
-                 int terracottaLocalKeyCacheSize,
-                 boolean terracottaCopyOnRead) {
+                 boolean terracottaCoherentReads) {
 
         changeStatus(Status.STATUS_UNINITIALISED);
 
@@ -727,13 +652,8 @@ public class Cache implements Ehcache {
             tcConfig.setValueMode(terracottaValueMode);
         }
         tcConfig.setCoherentReads(terracottaCoherentReads);
-        tcConfig.setOrphanEviction(terracottaOrphanEviction);
-        tcConfig.setOrphanEvictionPeriod(terracottaOrphanEvictionPeriod);
-        tcConfig.setLocalKeyCache(terracottaLocalKeyCache);
-        tcConfig.setLocalKeyCacheSize(terracottaLocalKeyCacheSize);
-        tcConfig.setCopyOnRead(terracottaCopyOnRead);
         configuration.addTerracotta(tcConfig);
-
+        
         //initialize statistics
         liveCacheStatisticsData = new LiveCacheStatisticsWrapper(this);
         sampledCacheStatistics = new SampledCacheStatisticsWrapper();
@@ -763,7 +683,6 @@ public class Cache implements Ehcache {
 
             if (isTerracottaClustered()) {
                 memoryStore = cacheManager.createTerracottaStore(this);
-                writeBehind = cacheManager.createWriteBehind(this);
             } else {
                 if (useClassicLru && configuration.getMemoryStoreEvictionPolicy().equals(MemoryStoreEvictionPolicy.LRU)) {
                     memoryStore = new LruMemoryStore(this, diskStore);
@@ -771,7 +690,6 @@ public class Cache implements Ehcache {
                     memoryStore = MemoryStore.create(this, diskStore);
                 }
             }
-
             changeStatus(Status.STATUS_ALIVE);
             initialiseRegisteredCacheExtensions();
             initialiseRegisteredCacheLoaders();
@@ -779,11 +697,13 @@ public class Cache implements Ehcache {
             // initialize live statistics
             // register to get notifications of
             // put/update/remove/expiry/eviction
-            getCacheEventNotificationService().registerListener(liveCacheStatisticsData);
+            getCacheEventNotificationService().registerListener(
+                    liveCacheStatisticsData);
             // set up default values
-            liveCacheStatisticsData.setStatisticsAccuracy(Statistics.STATISTICS_ACCURACY_BEST_EFFORT);
+            liveCacheStatisticsData
+                    .setStatisticsAccuracy(Statistics.STATISTICS_ACCURACY_BEST_EFFORT);
             liveCacheStatisticsData.setStatisticsEnabled(true);
-
+            
             // register the sampled cache statistics
             this.registerCacheUsageListener(sampledCacheStatistics);
         }
@@ -799,13 +719,6 @@ public class Cache implements Ehcache {
     }
 
     /**
-     * Obtain the write behind functionality tied to this cache instance.
-     */
-    public WriteBehind getWriteBehind() {
-      return writeBehind;
-    }
-
-    /**
      * Creates a disk store when either:
      * <ol>
      * <li>overflowToDisk is enabled
@@ -816,7 +729,7 @@ public class Cache implements Ehcache {
      */
     protected Store createDiskStore() {
         if (isDiskStore()) {
-            return DiskStore.create(this, diskStorePath);
+            return new DiskStore(this, diskStorePath);
         } else {
             return null;
         }
@@ -830,10 +743,10 @@ public class Cache implements Ehcache {
     protected boolean isDiskStore() {
         return configuration.isOverflowToDisk() || configuration.isDiskPersistent();
     }
-
+    
     /**
      * Indicates whether this cache is clustered by Terracotta
-     *
+     * 
      * @return {@code true} when the cache is clustered by Terracotta; or {@code false} otherwise
      */
     protected boolean isTerracottaClustered() {
@@ -975,9 +888,10 @@ public class Cache implements Ehcache {
 
     private void applyDefaultsToElementWithoutLifespanSet(Element element) {
         if (!element.isLifespanSet()) {
-            element.setLifespanDefaults(TimeUtil.convertTimeToInt(configuration.getTimeToIdleSeconds()),
-                                        TimeUtil.convertTimeToInt(configuration.getTimeToLiveSeconds()),
-                                        configuration.isEternal());
+            //Setting with Cache defaults
+            element.setTimeToLive(TimeUtil.convertTimeToInt(configuration.getTimeToLiveSeconds()));
+            element.setTimeToIdle(TimeUtil.convertTimeToInt(configuration.getTimeToIdleSeconds()));
+            element.setEternal(configuration.isEternal());
         }
     }
 
@@ -1047,11 +961,6 @@ public class Cache implements Ehcache {
      */
     public final Element get(Object key) throws IllegalStateException, CacheException {
         checkStatus();
-
-        if (disabled) {
-            return null;
-        }
-
         Element element;
         long start = System.currentTimeMillis();
 
@@ -1802,14 +1711,14 @@ public class Cache implements Ehcache {
      * <p/>
      * To get a very fast result, use {@link #getKeysNoDuplicateCheck()}.size().
      * If the disk store is being used, there will be some duplicates.
-     *
+     * 
      * @return The size value
      * @throws IllegalStateException
      *             if the cache is not {@link Status#STATUS_ALIVE}
      */
     public final int getSize() throws IllegalStateException, CacheException {
         checkStatus();
-
+        
         if (memoryStore.isCacheCoherent()) {
             return memoryStore.getTerracottaClusteredSize();
         } else {
@@ -1974,7 +1883,9 @@ public class Cache implements Ehcache {
      */
     public final boolean isExpired(Element element) throws IllegalStateException, NullPointerException {
         checkStatus();
-        return element.isExpired(configuration);
+        synchronized (element) {
+            return element.isExpired();
+        }
     }
 
 
@@ -1990,7 +1901,7 @@ public class Cache implements Ehcache {
      * @throws CloneNotSupportedException
      */
     @Override
-    public final Cache clone() throws CloneNotSupportedException {
+    public final Object clone() throws CloneNotSupportedException {
         if (!(memoryStore == null && diskStore == null)) {
             throw new CloneNotSupportedException("Cannot clone an initialized cache.");
         }
@@ -1998,7 +1909,7 @@ public class Cache implements Ehcache {
         // create new copies of the statistics
         copy.liveCacheStatisticsData = new LiveCacheStatisticsWrapper(copy);
         copy.sampledCacheStatistics = new SampledCacheStatisticsWrapper();
-
+        
         copy.configuration = configuration.clone();
         copy.guid = createGuid();
 
@@ -2143,7 +2054,6 @@ public class Cache implements Ehcache {
     public void clearStatistics() throws IllegalStateException {
         checkStatus();
         liveCacheStatisticsData.clearStatistics();
-        sampledCacheStatistics.clearStatistics();
         registeredEventListeners.clearCounters();
     }
 
@@ -2671,11 +2581,7 @@ public class Cache implements Ehcache {
      * @see #isDisabled()
      */
     public void setDisabled(boolean disabled) {
-        if (allowDisable) {
-            this.disabled = disabled;
-        } else {
-            throw new CacheException("Dynamic cache features are disabled");
-        }
+        this.disabled = disabled;
     }
 
     /**
@@ -2707,7 +2613,7 @@ public class Cache implements Ehcache {
         checkStatus();
         return (LiveCacheStatistics) liveCacheStatisticsData;
     }
-
+    
     private LiveCacheStatistics getLiveCacheStatisticsNoCheck() {
         return (LiveCacheStatistics) liveCacheStatisticsData;
     }
@@ -2753,7 +2659,7 @@ public class Cache implements Ehcache {
     public SampledCacheStatistics getSampledCacheStatistics() {
         return sampledCacheStatistics;
     }
-
+    
     /**
      * {@inheritDoc}
      */
@@ -2772,7 +2678,7 @@ public class Cache implements Ehcache {
 
     /**
      * {@inheritDoc}
-     *
+     * 
      * @see net.sf.ehcache.Ehcache#isSampledStatisticsEnabled()
      */
     public boolean isSampledStatisticsEnabled() {
@@ -2784,13 +2690,5 @@ public class Cache implements Ehcache {
      */
     public Object getInternalContext() {
         return memoryStore.getInternalContext();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void disableDynamicFeatures() {
-        configuration.freezeConfiguration();
-        allowDisable = false;
     }
 }

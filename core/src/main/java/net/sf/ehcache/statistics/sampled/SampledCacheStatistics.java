@@ -141,9 +141,4 @@ public interface SampledCacheStatistics {
      */
     public void dispose();
 
-    /**
-     * Clears sampled statistics for this cache
-     */
-    public void clearStatistics();
-
 }

@@ -552,7 +552,7 @@ public class RMICacheReplicatorTest extends AbstractCacheTest {
 
         Element firstElement = cachePeer.getQuiet((Serializable) keys.get(0));
         long size = firstElement.getSerializedSize();
-        assertEquals(504, size);
+        assertEquals(480, size);
 
         int chunkSize = (int) (5000000 / size);
 

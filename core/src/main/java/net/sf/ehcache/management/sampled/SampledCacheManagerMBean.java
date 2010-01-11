@@ -105,9 +105,4 @@ public interface SampledCacheManagerMBean {
      * @return aggregate expiration rate
      */
     public long getCacheExpirationRate();
-
-    /**
-     * Clears statistics of all caches for the associated cacheManager
-     */
-    public void clearStatistics();
 }

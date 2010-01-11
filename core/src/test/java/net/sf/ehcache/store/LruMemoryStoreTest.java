@@ -151,12 +151,11 @@ public class LruMemoryStoreTest extends MemoryStoreTester {
         for (int i = 0; i < 500; i++) {
             cache.put(new Element("" + i, "value1"));
         }
-        Thread.sleep(3000);
+        Thread.sleep(1010);
         for (int i = 0; i < 500; i++) {
             cache.get("" + i);
         }
 
-        Thread.sleep(3000);
         //evict some
         for (int i = 501; i < 750; i++) {
             cache.put(new Element("" + i, "value1"));
@@ -169,7 +168,7 @@ public class LruMemoryStoreTest extends MemoryStoreTester {
             }
         }
 
-        assertTrue("Ineffective eviction algorithm. Less than 230 of the last 249 put Elements remain: " + lastPutCount, lastPutCount >= 245);
+        assertTrue("Ineffective eviction algorithm. Less than 230 of the last 249 put Elements remain: " + lastPutCount, lastPutCount >= 230);
     }
 
 

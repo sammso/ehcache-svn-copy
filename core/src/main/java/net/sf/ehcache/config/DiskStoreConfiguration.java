@@ -32,11 +32,6 @@ import org.slf4j.LoggerFactory;
 public final class DiskStoreConfiguration {
 
     private static final Logger LOG = LoggerFactory.getLogger(DiskStoreConfiguration.class.getName());
-    
-    /**
-     * The path as specified in the config
-     */
-    private String originalPath;
 
 
     /**
@@ -88,16 +83,8 @@ public final class DiskStoreConfiguration {
      *             e.g. <code>java.io/tmpdir/caches</code> might become <code>/tmp/caches</code>
      */
     public final void setPath(final String path) {
-        this.originalPath = path;
         String translatedPath = translatePath(path);
         this.path = translatedPath;
-    }
-
-    /**
-     * @return the originalPath
-     */
-    public String getOriginalPath() {
-        return originalPath;
     }
 
     private static String translatePath(String path) {

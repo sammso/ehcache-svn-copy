@@ -452,24 +452,14 @@ public final class ConfigurationHelper {
     final Ehcache createCache(CacheConfiguration cacheConfiguration) {
         boolean terracottaClustered = false;
         String terracottaValueMode = null;
-        boolean terracottaCoherentReads = TerracottaConfiguration.DEFAULT_COHERENT_READS;
-        boolean terracottaOrphanEviction = TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION;
-        int terracottaOrphanEvictionPeriod = TerracottaConfiguration.DEFAULT_ORPHAN_EVICTION_PERIOD;
-        boolean terracottaLocalKeyCache = TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE;
-        int terracottaLocalKeyCacheSize = TerracottaConfiguration.DEFAULT_LOCAL_KEY_CACHE_SIZE;
-        boolean terracottaCopyOnRead = TerracottaConfiguration.DEFAULT_COPY_ON_READ;
+        boolean terracottaCoherentReads = true;
         TerracottaConfiguration tcConfiguration = cacheConfiguration.getTerracottaConfiguration();
         if (tcConfiguration != null) {
             terracottaClustered = tcConfiguration.isClustered();
             terracottaValueMode = tcConfiguration.getValueMode().name();
             terracottaCoherentReads = tcConfiguration.getCoherentReads();
-            terracottaOrphanEviction = tcConfiguration.getOrphanEviction();
-            terracottaOrphanEvictionPeriod = tcConfiguration.getOrphanEvictionPeriod();
-            terracottaLocalKeyCache = tcConfiguration.getLocalKeyCache();
-            terracottaLocalKeyCacheSize = tcConfiguration.getLocalKeyCacheSize();
-            terracottaCopyOnRead = tcConfiguration.isCopyOnRead();
         }
-
+        
         Ehcache cache = new Cache(cacheConfiguration.name,
                 cacheConfiguration.maxElementsInMemory,
                 cacheConfiguration.memoryStoreEvictionPolicy,
@@ -487,12 +477,7 @@ public final class ConfigurationHelper {
                 cacheConfiguration.clearOnFlush,
                 terracottaClustered,
                 terracottaValueMode,
-                terracottaCoherentReads,
-                terracottaOrphanEviction,
-                terracottaOrphanEvictionPeriod,
-                terracottaLocalKeyCache,
-                terracottaLocalKeyCacheSize,
-                terracottaCopyOnRead);
+                terracottaCoherentReads);
         RegisteredEventListeners listeners = cache.getCacheEventNotificationService();
         registerCacheListeners(cacheConfiguration, listeners);
         registerCacheExtensions(cacheConfiguration, cache);

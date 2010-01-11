@@ -17,20 +17,19 @@
 package net.sf.ehcache.config;
 
 /**
- * Holds the Terracotta clustered configuration
- * 
+ * Holds the Terracotta clustered configuration 
  * @author amiller@terracotta.org
  */
 public class TerracottaConfigConfiguration implements Cloneable {
     private static final String TC_CONFIG_HEADER = "<tc:tc-config xmlns:tc=\"http://www.terracotta.org/config\">";
     private static final String TC_CONFIG_FOOTER = "</tc:tc-config>";
-
+    
     private String url;
     private String embeddedConfig;
-
+    
     /**
      * Clones this object, following the usual contract.
-     * 
+     *
      * @return a copy, which independent other than configurations than cannot change.
      * @throws CloneNotSupportedException
      */
@@ -38,9 +37,9 @@ public class TerracottaConfigConfiguration implements Cloneable {
     public TerracottaConfigConfiguration clone() throws CloneNotSupportedException {
         return (TerracottaConfigConfiguration) super.clone();
     }
-
+    
     /**
-     * Set url
+     * Set url 
      */
     final public void setUrl(String url) {
         this.url = url;
@@ -53,13 +52,13 @@ public class TerracottaConfigConfiguration implements Cloneable {
     final public String getUrl() {
         return this.url;
     }
-
+    
     /**
-     * Tell the BeanHandler to extract the entire subtree xml as text at element <tc-config/>. Expects
+     * Tell the BeanHandler to extract the entire subtree xml as text at element <tc-config/>.  Expects
      * to receive the contents of the <tc-config/> tag and will wrap it in a proper tc-config header / footer.
      */
     final public void extractTcconfig(String text) {
-        this.embeddedConfig = text;
+        this.embeddedConfig = TC_CONFIG_HEADER + text + TC_CONFIG_FOOTER;
         validateConfiguration();
     }
 
@@ -67,16 +66,7 @@ public class TerracottaConfigConfiguration implements Cloneable {
      * Get the embedded config read as <tc-config/>
      */
     final public String getEmbeddedConfig() {
-        return TC_CONFIG_HEADER + embeddedConfig + TC_CONFIG_FOOTER;
-    }
-
-    /**
-     * Get the original embedded config
-     * 
-     * @return original embedded config
-     */
-    final public String getOriginalEmbeddedConfig() {
-        return embeddedConfig;
+        return this.embeddedConfig;
     }
 
     /**
@@ -85,12 +75,12 @@ public class TerracottaConfigConfiguration implements Cloneable {
     final public boolean isUrlConfig() {
         return this.url != null;
     }
-
+    
     private void validateConfiguration() {
         if (this.url != null && this.embeddedConfig != null) {
-            throw new InvalidConfigurationException("It is invalid to specify both a config url and "
-                    + "an embedded config in the <terracottaConfig> element.");
+            throw new InvalidConfigurationException("It is invalid to specify both a config url and " + 
+                    "an embedded config in the <terracottaConfig> element.");
         }
     }
-
+    
 }

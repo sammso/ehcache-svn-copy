@@ -40,7 +40,6 @@ import net.sf.ehcache.loader.CacheLoader;
 import net.sf.ehcache.statistics.CacheUsageListener;
 import net.sf.ehcache.statistics.LiveCacheStatistics;
 import net.sf.ehcache.statistics.sampled.SampledCacheStatistics;
-import net.sf.ehcache.writebehind.WriteBehind;
 
 
 /**
@@ -487,13 +486,6 @@ public class BlockingCache implements Ehcache {
      */
     protected Sync getLockForKey(final Object key) {
         return cacheLockProvider.getSyncForKey(key);
-    }
-
-  /**
-   * Obtain the write behind functionality tied to this cache instance.
-   */
-    public WriteBehind getWriteBehind() {
-      return cache.getWriteBehind();
     }
 
     /**
@@ -1106,13 +1098,6 @@ public class BlockingCache implements Ehcache {
      */
     public Object getInternalContext() {
         return cache.getInternalContext();
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    public void disableDynamicFeatures() {
-        cache.disableDynamicFeatures();
     }
 }
 

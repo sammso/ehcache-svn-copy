@@ -18,7 +18,6 @@ package net.sf.ehcache.event;
 
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.concurrent.atomic.AtomicLong;
 
 import net.sf.ehcache.CacheException;
 import net.sf.ehcache.Ehcache;
@@ -46,12 +45,12 @@ public class RegisteredEventListeners {
     private final Set<CacheEventListener> cacheEventListeners = new CopyOnWriteArraySet<CacheEventListener>();
     private final Ehcache cache;
 
-    private AtomicLong elementsRemovedCounter = new AtomicLong(0);
-    private AtomicLong elementsPutCounter = new AtomicLong(0);
-    private AtomicLong elementsUpdatedCounter = new AtomicLong(0);
-    private AtomicLong elementsExpiredCounter = new AtomicLong(0);
-    private AtomicLong elementsEvictedCounter = new AtomicLong(0);
-    private AtomicLong elementsRemoveAllCounter = new AtomicLong(0);
+    private long elementsRemovedCounter;
+    private long elementsPutCounter;
+    private long elementsUpdatedCounter;
+    private long elementsExpiredCounter;
+    private long elementsEvictedCounter;
+    private long elementsRemoveAllCounter;
 
     /**
      * Constructs a new notification service
@@ -71,7 +70,7 @@ public class RegisteredEventListeners {
      * @see CacheEventListener#notifyElementRemoved
      */
     public final void notifyElementRemoved(Element element, boolean remoteEvent) throws CacheException {
-        elementsRemovedCounter.incrementAndGet();
+        elementsRemovedCounter++;
         if (hasCacheEventListeners()) {
             for (CacheEventListener cacheEventListener : cacheEventListeners) {
                 if (!isCircularNotification(remoteEvent, cacheEventListener)) {
@@ -89,7 +88,7 @@ public class RegisteredEventListeners {
      * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)
      */
     public final void notifyElementPut(Element element, boolean remoteEvent) throws CacheException {
-        elementsPutCounter.incrementAndGet();
+        elementsPutCounter++;
         if (hasCacheEventListeners()) {
             for (CacheEventListener cacheEventListener : cacheEventListeners) {
                 if (!isCircularNotification(remoteEvent, cacheEventListener)) {
@@ -108,7 +107,7 @@ public class RegisteredEventListeners {
      * @see CacheEventListener#notifyElementPut(net.sf.ehcache.Ehcache,net.sf.ehcache.Element)
      */
     public final void notifyElementUpdated(Element element, boolean remoteEvent) {
-        elementsUpdatedCounter.incrementAndGet();
+        elementsUpdatedCounter++;
         if (hasCacheEventListeners()) {
             for (CacheEventListener cacheEventListener : cacheEventListeners) {
                 if (!isCircularNotification(remoteEvent, cacheEventListener)) {
@@ -126,7 +125,7 @@ public class RegisteredEventListeners {
      * @see CacheEventListener#notifyElementExpired
      */
     public final void notifyElementExpiry(Element element, boolean remoteEvent) {
-        elementsExpiredCounter.incrementAndGet();
+        elementsExpiredCounter++;
         if (hasCacheEventListeners()) {
             for (CacheEventListener cacheEventListener : cacheEventListeners) {
                 if (!isCircularNotification(remoteEvent, cacheEventListener)) {
@@ -154,7 +153,7 @@ public class RegisteredEventListeners {
      * @see CacheEventListener#notifyElementEvicted
      */
     public void notifyElementEvicted(Element element, boolean remoteEvent) {
-        elementsEvictedCounter.incrementAndGet();
+        elementsEvictedCounter++;
         if (hasCacheEventListeners()) {
             for (CacheEventListener cacheEventListener : cacheEventListeners) {
                 if (!isCircularNotification(remoteEvent, cacheEventListener)) {
@@ -173,7 +172,7 @@ public class RegisteredEventListeners {
      * @see CacheEventListener#notifyElementEvicted
      */
     public void notifyRemoveAll(boolean remoteEvent) {
-        elementsRemoveAllCounter.incrementAndGet();
+        elementsRemoveAllCounter++;
         if (hasCacheEventListeners()) {
             for (CacheEventListener cacheEventListener : cacheEventListeners) {
                 if (!isCircularNotification(remoteEvent, cacheEventListener)) {
@@ -264,12 +263,12 @@ public class RegisteredEventListeners {
      * Clears all event counters
      */
     public void clearCounters() {
-        elementsRemovedCounter.set(0);
-        elementsPutCounter.set(0);
-        elementsUpdatedCounter.set(0);
-        elementsExpiredCounter.set(0);
-        elementsEvictedCounter.set(0);
-        elementsRemoveAllCounter.set(0);
+        elementsRemovedCounter = 0;
+        elementsPutCounter = 0;
+        elementsUpdatedCounter = 0;
+        elementsExpiredCounter = 0;
+        elementsEvictedCounter = 0;
+        elementsRemoveAllCounter = 0;
     }
 
     /**
@@ -278,7 +277,7 @@ public class RegisteredEventListeners {
      * @return the number of events since cache creation or last clearing of counters
      */
     public long getElementsRemovedCounter() {
-        return elementsRemovedCounter.get();
+        return elementsRemovedCounter;
     }
 
     /**
@@ -287,7 +286,7 @@ public class RegisteredEventListeners {
      * @return the number of events since cache creation or last clearing of counters
      */
     public long getElementsPutCounter() {
-        return elementsPutCounter.get();
+        return elementsPutCounter;
     }
 
     /**
@@ -296,7 +295,7 @@ public class RegisteredEventListeners {
      * @return the number of events since cache creation or last clearing of counters
      */
     public long getElementsUpdatedCounter() {
-        return elementsUpdatedCounter.get();
+        return elementsUpdatedCounter;
     }
 
     /**
@@ -305,7 +304,7 @@ public class RegisteredEventListeners {
      * @return the number of events since cache creation or last clearing of counters
      */
     public long getElementsExpiredCounter() {
-        return elementsExpiredCounter.get();
+        return elementsExpiredCounter;
     }
 
     /**
@@ -314,7 +313,7 @@ public class RegisteredEventListeners {
      * @return the number of events since cache creation or last clearing of counters
      */
     public long getElementsEvictedCounter() {
-        return elementsEvictedCounter.get();
+        return elementsEvictedCounter;
     }
 
     /**
@@ -323,6 +322,6 @@ public class RegisteredEventListeners {
      * @return the number of events since cache creation or last clearing of counters
      */
     public long getElementsRemoveAllCounter() {
-        return elementsRemoveAllCounter.get();
+        return elementsRemoveAllCounter;
     }
 }
